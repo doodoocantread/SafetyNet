@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+build/
+dist/
+
+# Secrets
+.env
+
+# Scan artifacts (bind-mounted into the agent container at runtime)
+/runs/*
+!/runs/.gitkeep
+/agent_image/agent-workspaces/
+*.sqlite3
+
+# Node (inside image build only)
+node_modules/

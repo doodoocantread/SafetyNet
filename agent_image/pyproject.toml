@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pentestgpt-agent-vendored"
+version = "0.1.0"
+description = "Vendored PentestGPT Supervisor/Executor agent, installed inside the SafetyNet scan image."
+requires-python = ">=3.12,<4.0"
+# unified-agent is NOT on PyPI — it is pinned to the same git revision PentestGPT uses.
+# See ARCHITECTURE.md §7.2. Changing the rev changes agent behaviour.
+dependencies = [
+    "unified-agent[claude] @ git+https://github.com/PentestGPT-Project/UnifedAgentWrapper.git@acff8eeadf93e367d4a1578d3a2739cbc9d3ace5",
+]
+
+[project.scripts]
+pentestgpt-agent = "pentestgpt_agent.trial:main"
+
+[tool.setuptools]
+packages = ["pentestgpt_agent"]
