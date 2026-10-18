@@ -13,13 +13,16 @@ from .labeling import HeuristicLabeler, Labeler, label_findings
 from .models import Report
 
 
+def default_llm_model() -> str:
+    return os.environ.get("SAFETYNET_LLM_MODEL", "claude-opus-5-5")
+
+
 def default_labeler() -> Labeler:
     """LLM labeler when a key is set, else the offline heuristic one."""
     if os.environ.get("ANTHROPIC_API_KEY"):
         from .labeling_llm import LLMLabeler
 
-        model = os.environ.get("SAFETYNET_LLM_MODEL", "claude-opus-5-5")
-        return LLMLabeler(model=model)
+        return LLMLabeler(model=default_llm_model())
     return HeuristicLabeler()
 
 

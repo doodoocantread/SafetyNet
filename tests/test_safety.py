@@ -4,7 +4,9 @@ These run without Docker, a network, or any LLM — they pin the deterministic
 parts of the pipeline (ARCHITECTURE.md §2).
 """
 
+import asyncio
 import json
+import sys
 
 import pytest
 
@@ -16,7 +18,12 @@ from safetynet.config import (
     validate_run_id,
     validate_target,
 )
-from safetynet.engines.live import LiveAgentEngine, target_for_container
+from safetynet.engines.live import (
+    LiveAgentEngine,
+    ScanFailed,
+    container_name,
+    target_for_container,
+)
 
 # --- Rule 1: whitelist -------------------------------------------------------
 
@@ -159,6 +166,9 @@ def test_build_command_mounts_runs_and_translates_target(tmp_path):
     # backend fixed to claude
     j = cmd.index("--backend")
     assert cmd[j + 1] == "claude"
+    # named so a cancel/timeout can `docker kill` the real container, not just
+    # the attached CLI client
+    assert cmd[cmd.index("--name") + 1] == container_name("r1") == "safetynet-r1"
 
 
 def test_build_command_mounts_creds_writable(tmp_path):
@@ -204,3 +214,48 @@ def test_prepare_creds_copies_without_touching_host(tmp_path):
 def test_prepare_creds_none_when_no_host_creds(tmp_path):
     eng = LiveAgentEngine(runs_root=tmp_path / "runs", claude_creds_dir=tmp_path / "absent")
     assert eng._prepare_creds() is None
+
+
+# --- Cancel / timeout must stop the real container, not just the CLI client ---
+#
+# No real Docker needed: build_command is swapped for a plain long-sleeping
+# subprocess, and _kill_container is spied on, so these pin "cancelling/timing
+# out a live scan actually stops the work" without a daemon.
+
+def _hang_command(_self, **_kw) -> list[str]:
+    return [sys.executable, "-c", "import time; time.sleep(30)"]
+
+
+async def test_cancel_kills_container_and_propagates(tmp_path, monkeypatch):
+    eng = LiveAgentEngine(runs_root=tmp_path / "runs", claude_creds_dir=tmp_path / "nope")
+    killed = []
+
+    async def fake_kill_container(self, run_id):
+        killed.append(run_id)
+
+    monkeypatch.setattr(LiveAgentEngine, "_kill_container", fake_kill_container)
+    monkeypatch.setattr(LiveAgentEngine, "build_command", _hang_command)
+
+    task = asyncio.create_task(eng.run(target="http://127.0.0.1:3000", goal="g", run_id="rc1"))
+    await asyncio.sleep(0.2)  # let the subprocess actually start
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert killed == ["rc1"]
+
+
+async def test_timeout_kills_container(tmp_path, monkeypatch):
+    eng = LiveAgentEngine(
+        runs_root=tmp_path / "runs", claude_creds_dir=tmp_path / "nope", timeout_s=0.3
+    )
+    killed = []
+
+    async def fake_kill_container(self, run_id):
+        killed.append(run_id)
+
+    monkeypatch.setattr(LiveAgentEngine, "_kill_container", fake_kill_container)
+    monkeypatch.setattr(LiveAgentEngine, "build_command", _hang_command)
+
+    with pytest.raises(ScanFailed, match="timed out"):
+        await eng.run(target="http://127.0.0.1:3000", goal="g", run_id="rt1")
+    assert killed == ["rt1"]

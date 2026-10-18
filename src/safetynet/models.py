@@ -35,6 +35,9 @@ class Label(BaseModel):
     cwe: str | None = None
     owasp: str | None = None
     explanation: str = ""
+    # Why THIS finding was flagged: the concrete signals in its own request/response
+    # (payload seen, status code, marker in the body) — not a generic class blurb.
+    rationale: list[str] = Field(default_factory=list)
     remediation: str = ""
     confidence: str = "medium"  # low | medium | high
     labeled_by: str = "unknown"  # "heuristic" or "llm:<model>"
@@ -55,6 +58,10 @@ class Finding(BaseModel):
     is_error: bool = False
     evidence_sequences: list[int] = Field(default_factory=list)
     trace_episode_id: str | None = None
+    # The agent's own summary of the attempt that produced this observation
+    # (summary.json attempts[].summary). Written by an LLM that read untrusted web
+    # content — shown as the agent's claim, never treated as verified fact.
+    agent_note: str | None = None
 
     # NARRATIVE — None until labeled.
     label: Label | None = None

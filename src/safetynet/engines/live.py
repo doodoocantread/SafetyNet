@@ -20,14 +20,13 @@ Two integration seams handled here (ARCHITECTURE.md §7):
 from __future__ import annotations
 
 import asyncio
-import json
 import shutil
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit
 
-from .base import RunResult
+from .base import RunResult, ScanFailed, load_run_result  # noqa: F401 - ScanFailed re-exported
 
 # Target host as seen from inside the container (Docker Desktop / host-gateway).
 _CONTAINER_HOST = "host.docker.internal"
@@ -35,6 +34,14 @@ _CONTAINER_HOST = "host.docker.internal"
 # Home of the non-root container user (see agent_image/Dockerfile). Credentials
 # are mounted here, not into /root — Claude Code refuses to run as root.
 _CONTAINER_HOME = "/home/agent"
+
+
+def container_name(run_id: str) -> str:
+    """Deterministic `docker run --name`. Without a name there is nothing to
+    `docker kill` on cancel/timeout — the client process can be killed, but
+    `docker run` (attached, no `-d`) does not forward SIGKILL to the container,
+    so the scan would keep running after the user "cancelled" it."""
+    return f"safetynet-{run_id}"
 
 
 def target_for_container(url: str) -> str:
@@ -48,10 +55,6 @@ def target_for_container(url: str) -> str:
             netloc = f"{_CONTAINER_HOST}:{parts.port}"
         parts = parts._replace(netloc=netloc)
     return urlunsplit(parts)
-
-
-class ScanFailed(RuntimeError):
-    """The container ran but produced no readable summary.json."""
 
 
 @dataclass
@@ -86,6 +89,9 @@ class LiveAgentEngine:
         runs_abs = str(self.runs_root.resolve())
         cmd = [
             "docker", "run", "--rm",
+            # So a cancel/timeout can `docker kill` the real container, not just
+            # the attached CLI client (see container_name()).
+            "--name", container_name(run_id),
             # Reach the host's loopback services from inside the container.
             "--add-host", "host.docker.internal:host-gateway",
             # Persist runs/ back to the host so the backend can read results.
@@ -135,6 +141,19 @@ class LiveAgentEngine:
             shutil.copy2(host_json, tmp_root / ".claude.json")
         return tmp_root
 
+    async def _kill_container(self, run_id: str) -> None:
+        """Best-effort `docker kill` on the named container. Needed on both the
+        timeout path and a user cancel: killing the attached `docker run` CLI
+        client alone leaves the container running (see container_name())."""
+        try:
+            killer = await asyncio.create_subprocess_exec(
+                "docker", "kill", container_name(run_id),
+                stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL,
+            )
+            await killer.wait()
+        except OSError:
+            pass  # docker CLI missing/unreachable — nothing more we can do here
+
     async def run(self, *, target: str, goal: str, run_id: str) -> RunResult:
         creds_root = self._prepare_creds()
         creds_dir = (creds_root / ".claude") if creds_root else None
@@ -154,24 +173,22 @@ class LiveAgentEngine:
             try:
                 raw, _ = await asyncio.wait_for(proc.communicate(), timeout=self.timeout_s)
             except TimeoutError:
+                await self._kill_container(run_id)
                 proc.kill()
                 await proc.wait()
                 raise ScanFailed(f"scan {run_id} timed out after {self.timeout_s}s") from None
+            except asyncio.CancelledError:
+                # The user cancelled: stop the container for real, then let the
+                # cancellation keep propagating so the caller sees it as cancelled.
+                await self._kill_container(run_id)
+                proc.kill()
+                await proc.wait()
+                raise
             stdout = raw.decode("utf-8", errors="replace")
-
             # The agent always writes summary.json, even on failure (trial.run_trial).
-            summary_path = self.runs_root / run_id / "summary.json"
-            if not summary_path.is_file():
-                raise ScanFailed(
-                    f"no summary.json for {run_id} (docker exit {proc.returncode}).\n{stdout[-2000:]}"
-                )
-            summary = json.loads(summary_path.read_text(encoding="utf-8"))
-            return RunResult(
-                run_id=run_id,
-                summary=summary,
-                traces_dir=self.runs_root / run_id / "traces",
-                engine=self.name,
-                raw_stdout=stdout,
+            return load_run_result(
+                self.runs_root, run_id, engine=self.name,
+                stdout=stdout, returncode=proc.returncode,
             )
         finally:
             if creds_root is not None:

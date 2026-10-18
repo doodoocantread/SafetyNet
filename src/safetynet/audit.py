@@ -23,6 +23,24 @@ def _now_iso() -> str:
     return datetime.now(UTC).isoformat(timespec="seconds")
 
 
+def read_entries(runs_root: Path) -> list[dict[str, Any]]:
+    """Every parsable entry, oldest first. A torn or garbled line is skipped so it
+    cannot hide the rest of the log; a missing log is simply empty."""
+    try:
+        lines = (runs_root / _AUDIT_FILENAME).read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return []
+    entries = []
+    for line in lines:
+        try:
+            entry = json.loads(line)
+        except ValueError:
+            continue
+        if isinstance(entry, dict):
+            entries.append(entry)
+    return entries
+
+
 def record_scan(
     runs_root: Path,
     *,

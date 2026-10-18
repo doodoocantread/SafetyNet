@@ -66,6 +66,9 @@ def adapt(summary: dict[str, Any], traces_dir: Path) -> list[Finding]:
     task_kind = {t["id"]: t.get("kind") for t in summary.get("tasks", [])}
     task_target = {t["id"]: t.get("target") for t in summary.get("tasks", [])}
     default_target = (summary.get("targets") or [None])[0]
+    attempts = summary.get("attempts", [])
+    note_by_attempt = {a.get("id"): a.get("summary") for a in attempts}
+    note_by_episode = {a.get("trace_episode_id"): a.get("summary") for a in attempts}
 
     findings: list[Finding] = []
     for i, obs in enumerate(summary.get("observations", [])):
@@ -89,6 +92,8 @@ def adapt(summary: dict[str, Any], traces_dir: Path) -> list[Finding]:
                 is_error=is_error,
                 evidence_sequences=seqs,
                 trace_episode_id=episode,
+                agent_note=note_by_attempt.get(obs.get("attempt_id"))
+                or note_by_episode.get(episode) or None,
             )
         )
     return findings

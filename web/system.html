@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SafetyNet — Hệ thống</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;750&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<script src="/static/theme-init.js"></script>
+<link rel="stylesheet" href="/static/styles.css" />
+<script defer src="/static/codefall.js"></script>
+<script crossorigin src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone@7.25.6/babel.min.js"></script>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel" src="/static/shared.jsx"></script>
+<script type="text/babel">
+document.title = tr("SafetyNet — Hệ thống", "SafetyNet — System");
+
+function Row({k, children}) {
+  return <div className="sysrow"><span className="k">{k}</span><span className="v">{children}</span></div>;
+}
+const Pill = ({kind, children}) => <span className={"pill " + kind}>{children}</span>;
+const yn = (ok, yes, no) => ok ? <Pill kind="ok">{yes}</Pill> : <Pill kind="bad">{no}</Pill>;
+
+const EVENT = {
+  scan_requested: {label: tr("Yêu cầu quét", "Scan requested"), kind: "off"},
+  scan_done:      {label: tr("Hoàn tất", "Completed"), kind: "ok"},
+  scan_error:     {label: tr("Lỗi", "Error"), kind: "bad"},
+  scan_cancelled: {label: tr("Đã hủy", "Cancelled"), kind: "warn"},
+};
+
+function DockerCard({d}) {
+  return <div className="card">
+    <div className="card-h"><p className="card-title">{tr("Chế độ Docker (cô lập)", "Docker mode (isolated)")}</p></div>
+    <div className="card-b">
+      <Row k={tr("Trạng thái chung", "Overall status")}>{d.ok ? <Pill kind="ok">{tr("Sẵn sàng", "Ready")}</Pill> : <Pill kind="bad">{tr("Chưa sẵn sàng", "Not ready")}</Pill>}</Row>
+      <Row k="Docker CLI">{yn(d.installed, tr("Đã cài", "Installed"), tr("Không tìm thấy", "Not found"))}</Row>
+      <Row k="Docker daemon">{d.installed
+        ? yn(d.daemon, d.server_version ? `${tr("Đang chạy", "Running")} · ${d.server_version}` : tr("Đang chạy", "Running"), tr("Không phản hồi", "Not responding"))
+        : <Pill kind="off">—</Pill>}</Row>
+      <Row k={<>Image <span className="mono">{d.image}</span></>}>{d.daemon
+        ? yn(d.image_built, tr("Đã build", "Built"), tr("Chưa build", "Not built"))
+        : <Pill kind="off">—</Pill>}</Row>
+      {!d.installed && <div className="hint">{tr("Cài Docker Desktop, rồi mở lại trang này.", "Install Docker Desktop, then reopen this page.")}</div>}
+      {d.installed && !d.daemon && <div className="hint">{tr("Hãy khởi động Docker Desktop (daemon chưa trả lời).", "Start Docker Desktop (the daemon is not responding).")}</div>}
+      {d.daemon && !d.image_built && <>
+        <div className="hint">{tr("Build image của agent một lần:", "Build the agent image once:")}</div>
+        <code className="cmd">docker build -t {d.image} ./agent_image</code></>}
+    </div>
+  </div>;
+}
+
+function DirectCard({d}) {
+  return <div className="card">
+    <div className="card-h"><p className="card-title">{tr("Chế độ trực tiếp (không cô lập)", "Direct mode (not isolated)")}</p></div>
+    <div className="card-b">
+      <Row k={tr("Server cho phép", "Server allows it")}>{d.enabled ? <Pill kind="warn">{tr("Đang bật", "Enabled")}</Pill> : <Pill kind="off">{tr("Tắt", "Off")}</Pill>}</Row>
+      <Row k="Agent CLI">{d.agent_found ? <Pill kind="ok">{tr("Tìm thấy", "Found")}</Pill> : <Pill kind="off">{tr("Không tìm thấy", "Not found")}</Pill>}</Row>
+      {d.agent_cmd && <Row k={tr("Lệnh", "Command")}><span className="mono">{d.agent_cmd}</span></Row>}
+      {!d.enabled && <>
+        <div className="hint">{tr("Mặc định tắt vì agent chạy toàn quyền trên máy bạn. Chỉ người khởi động server mới bật được (không bật từ giao diện):", "Off by default because the agent runs with full access on your machine. Only whoever starts the server can enable it (not from the UI):")}</div>
+        <code className="cmd">{d.env}=1 uv run uvicorn safetynet.api:app --port 8000</code></>}
+      {d.enabled && <div className="warnbox" style={{margin: "10px 0 0"}}><span>⚠️</span>
+        <div>{tr(<>Chế độ này <b>không có container</b>. Chỉ dùng với target dev của chính bạn.</>, <>This mode has <b>no container</b>. Use it only against your own dev targets.</>)}</div></div>}
+    </div>
+  </div>;
+}
+
+function LabelerCard({l}) {
+  return <div className="card">
+    <div className="card-h"><p className="card-title">{tr("Gán nhãn báo cáo", "Report labeling")}</p></div>
+    <div className="card-b">
+      <Row k={tr("Đang dùng", "In use")}>{l.effective === "llm" ? <Pill kind="ok">LLM · {l.model}</Pill> : <Pill kind="off">Heuristic (offline)</Pill>}</Row>
+      <Row k="ANTHROPIC_API_KEY">{l.api_key_set ? <Pill kind="ok">{tr("Đã đặt", "Set")}</Pill> : <Pill kind="off">{tr("Chưa đặt", "Not set")}</Pill>}</Row>
+      <Row k={tr("Package anthropic", "anthropic package")}>{l.sdk_installed ? <Pill kind="ok">{tr("Đã cài", "Installed")}</Pill> : <Pill kind="off">{tr("Chưa cài", "Not installed")}</Pill>}</Row>
+      {l.note && <div className={"hint" + (l.api_key_set && !l.sdk_installed ? " err" : "")}>{be(l.note)}</div>}
+      <div className="hint">{tr(<>Nhãn chỉ <i>diễn giải</i> bằng chứng; CWE → OWASP luôn lấy từ bảng tĩnh.</>, <>Labels only <i>interpret</i> the evidence; CWE → OWASP always comes from a static table.</>)}</div>
+    </div>
+  </div>;
+}
+
+function Audit({limit, setLimit}) {
+  const [rows, setRows] = useState(null);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  async function load() {
+    setLoading(true); setError("");
+    try { setRows(await api(`/api/audit?limit=${limit}`)); } catch (e) { setError(tr("Lỗi: ", "Error: ") + e.message); }
+    setLoading(false);
+  }
+  useEffect(() => { load(); }, [limit]);
+
+  return <div className="card">
+    <div className="card-h row">
+      <p className="card-title">{tr("Nhật ký kiểm toán", "Audit log")} · runs/audit.log</p>
+      <span style={{display: "flex", gap: 8}}>
+        <select value={limit} onChange={e => setLimit(Number(e.target.value))} style={{width: "auto"}} aria-label={tr("Số dòng", "Rows")}>
+          {[50, 100, 300, 500].map(n => <option key={n} value={n}>{n} {tr("dòng", "rows")}</option>)}
+        </select>
+        <button className="icon-btn" title={tr("Làm mới", "Refresh")} onClick={load} disabled={loading}>↻</button>
+      </span>
+    </div>
+    <div className="card-b">
+      <div className="hint" style={{marginTop: 0, marginBottom: 10}}>
+        {tr(<>Luật an toàn #5: mỗi yêu cầu quét được ghi <b>trước khi</b> bất cứ thứ gì được chạy — bằng chứng về phạm vi đã được phép.
+        File chỉ ghi thêm (append-only).</>,
+        <>Safety rule #5: every scan request is recorded <b>before</b> anything runs — proof of the permitted scope.
+        The file is append-only.</>)}</div>
+      {error && <div className="hint err">{error}</div>}
+      {rows && rows.length === 0 && <div className="hint">{tr("Nhật ký trống.", "The log is empty.")}</div>}
+      {rows && rows.length > 0 && <div className="tbl-wrap"><table className="tbl">
+        <thead><tr><th>{tr("Thời gian", "Time")}</th><th>{tr("Sự kiện", "Event")}</th><th>Target</th><th>{tr("Loại", "Type")}</th><th>{tr("Chế độ", "Mode")}</th><th>Run</th><th>{tr("Chi tiết", "Details")}</th></tr></thead>
+        <tbody>{rows.map((r, i) => {
+          const ev = EVENT[r.event] || {label: r.event, kind: "off"};
+          return <tr key={i}>
+            <td className="muted" style={{whiteSpace: "nowrap"}}>{fmtTime(r.ts)}</td>
+            <td><Pill kind={ev.kind}>{ev.label}</Pill></td>
+            <td className="mono wrapcell">{r.target || "—"}</td>
+            <td>{r.scan_type || "—"}</td>
+            <td>{r.mode || "—"}</td>
+            <td className="mono"><a href={`/history?run=${encodeURIComponent(r.run_id)}`}>{r.run_id}</a></td>
+            <td className="wrapcell muted">{be(r.error) || [r.status, r.model, r.timeout_s ? r.timeout_s + "s" : null].filter(Boolean).join(" · ") || "—"}</td>
+          </tr>;
+        })}</tbody>
+      </table></div>}
+    </div>
+  </div>;
+}
+
+function SystemPage() {
+  const [st, setSt] = useState(null);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [limit, setLimit] = useState(100);
+
+  async function load() {
+    setLoading(true); setError("");
+    try { setSt(await api("/api/system")); } catch (e) { setError(tr("Lỗi: ", "Error: ") + e.message); }
+    setLoading(false);
+  }
+  useEffect(() => { load(); }, []);
+
+  const jobs = st ? Object.entries(st.jobs) : [];
+
+  return <div>
+    <AppBar active="system" />
+    <div className="wrap">
+      <div className="hero" style={{display: "flex", justifyContent: "space-between", gap: 14, alignItems: "flex-start", flexWrap: "wrap"}}>
+        <div style={{flex: "1 1 320px"}}>
+          <h1>{tr("Hệ thống", "System")}</h1>
+          <p>{tr("Mọi thứ một lần quét cần có (Docker, agent, nhãn LLM), các giới hạn đang áp dụng và nhật ký kiểm toán — xem trước để không phải đợi quét lỗi mới biết thiếu gì.",
+            "Everything a scan needs (Docker, agent, LLM labels), the limits in force and the audit log — check up front so you do not have to wait for a failed scan to find out what is missing.")}</p>
+        </div>
+        <button className="btn ghost sm" style={{whiteSpace: "nowrap"}} onClick={load} disabled={loading}>
+          {loading ? <span className="spin" /> : tr("↻ Kiểm tra lại", "↻ Re-check")}</button>
+      </div>
+
+      {error && <div className="hint err">{error}</div>}
+      {!st && !error && <div className="card"><div className="empty"><span className="spin" /></div></div>}
+
+      {st && <>
+        <div className="cols2">
+          <DockerCard d={st.docker} />
+          <DirectCard d={st.direct} />
+        </div>
+        <div className="cols2">
+          <LabelerCard l={st.labeler} />
+
+          <div className="card">
+            <div className="card-h"><p className="card-title">{tr("Giới hạn đang áp dụng", "Limits in force")}</p></div>
+            <div className="card-b">
+              <Row k={tr("Quét song song tối đa", "Max parallel scans")}>{st.limits.max_concurrent_scans}</Row>
+              <Row k={tr("Timeout mặc định", "Default timeout")}>{st.limits.default_timeout_s}s</Row>
+              <Row k={tr("Timeout cho phép", "Allowed timeout")}>{st.limits.min_timeout_s}–{st.limits.max_timeout_s}s</Row>
+              <Row k={tr("Tiến trình quét (bộ nhớ)", "Scan jobs (in memory)")}>{jobs.length
+                ? jobs.map(([k, n]) => <span key={k} style={{marginLeft: 6}}><StatusPill status={k} /> {n}</span>)
+                : <span className="hint" style={{margin: 0}}>{tr("không có", "none")}</span>}</Row>
+              <div className="hint">{tr(<>Đây là các hằng số trong <span className="mono">config.py</span> / <span className="mono">api.py</span>;
+                đổi chúng cần sửa code, không chỉnh được từ giao diện.</>,
+                <>These are constants in <span className="mono">config.py</span> / <span className="mono">api.py</span>;
+                changing them means editing code — they cannot be changed from the UI.</>)}</div>
+            </div>
+          </div>
+        </div>
+
+        <div className="cols2">
+          <div className="card">
+            <div className="card-h"><p className="card-title">{tr("Phạm vi quét (luật an toàn #1, #2)", "Scan scope (safety rules #1, #2)")}</p></div>
+            <div className="card-b">
+              <Row k={tr("Host được phép", "Allowed hosts")}>{st.scope.allowed_hosts.map(h => <span key={h} className="chip mono" style={{marginLeft: 4}}>{h}</span>)}</Row>
+              <Row k="Scheme">{st.scope.schemes.join(", ")}</Row>
+              <div className="label" style={{marginTop: 12, marginBottom: 0}}>{tr("Loại scan & goal cố định", "Scan types & fixed goals")}</div>
+              <ul className="scope-list">
+                {st.scope.scan_types.map(t => <li key={t.key}><b>{t.label} <span className="mono">({t.key})</span></b><span>{t.goal}</span></li>)}
+              </ul>
+            </div>
+          </div>
+
+          <div className="card">
+            <div className="card-h"><p className="card-title">{tr("Lưu trữ", "Storage")}</p></div>
+            <div className="card-b">
+              <Row k={tr("Thư mục runs", "Runs folder")}><span className="mono">{st.storage.runs_dir}</span></Row>
+              <Row k={tr("Số run", "Runs")}>{st.storage.runs}</Row>
+              <Row k={tr("Báo cáo đã cache", "Cached reports")}>{st.storage.cached_reports} / {st.storage.runs}</Row>
+              <Row k={tr("Nhật ký kiểm toán", "Audit log")}>{st.storage.audit_entries} {tr("dòng", "rows")} · {fmtBytes(st.storage.audit_bytes)}</Row>
+              <Row k={tr("Trạng thái xử lý lỗ hổng", "Vulnerability triage")}>{st.storage.triage_file ? tr("Đã lưu (triage.json)", "Saved (triage.json)") : tr("Chưa có", "None yet")}</Row>
+              <div className="hint">{tr("Mọi dữ liệu nằm trên máy này; không có cơ sở dữ liệu hay dịch vụ ngoài.", "All data stays on this machine; there is no database or external service.")}</div>
+            </div>
+          </div>
+        </div>
+
+        <Audit limit={limit} setLimit={setLimit} />
+
+        <div className="hint" style={{textAlign: "center", marginTop: 18}}>
+          SafetyNet v{st.app.version} · Python {st.app.python} · {st.app.platform}</div>
+      </>}
+
+      <footer>{FOOTER}</footer>
+    </div>
+  </div>;
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<SystemPage />);
+</script>
+</body>
+</html>

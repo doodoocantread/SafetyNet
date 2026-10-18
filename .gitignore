@@ -13,6 +13,8 @@ dist/
 /runs/*
 !/runs/.gitkeep
 /agent_image/agent-workspaces/
+/agent-workspaces/
+/.agent-venv/
 *.sqlite3
 
 # Node (inside image build only)

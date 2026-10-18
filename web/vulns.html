@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SafetyNet — Lỗ hổng</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;750&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<script src="/static/theme-init.js"></script>
+<link rel="stylesheet" href="/static/styles.css" />
+<script defer src="/static/codefall.js"></script>
+<script crossorigin src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone@7.25.6/babel.min.js"></script>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel" src="/static/shared.jsx"></script>
+<script type="text/babel">
+document.title = tr("SafetyNet — Lỗ hổng", "SafetyNet — Vulnerabilities");
+
+const TABS = [
+  {key: "active",    label: tr("Đang mở", "Open"), match: v => v.triage === "open" || v.triage === "fixing"},
+  {key: "fixed",     label: tr("Đã sửa", "Fixed"), match: v => v.triage === "fixed"},
+  {key: "dismissed", label: tr("Đã bỏ qua", "Dismissed"), match: v => v.triage === "false_positive" || v.triage === "accepted"},
+  {key: "all",       label: tr("Tất cả", "All"), match: () => true},
+];
+
+function Vuln({v, onSave, typeLabel}) {
+  const [status, setStatus] = useState(v.triage);
+  const [note, setNote] = useState(v.triage_note || "");
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState("");
+  const dirty = status !== v.triage || note.trim() !== (v.triage_note || "");
+  const closed = v.triage !== "open" && v.triage !== "fixing";
+  const rescan = `/scan?target=${encodeURIComponent(v.target)}` + (v.last_scan_type ? `&type=${encodeURIComponent(v.last_scan_type)}` : "")
+    + (v.projects && v.projects.length ? `&project=${encodeURIComponent(v.projects[0])}` : "");
+
+  async function save() {
+    setSaving(true); setErr("");
+    try { await onSave(v.id, status, note.trim()); }
+    catch (e) { setErr(tr("Lỗi: ", "Error: ") + e.message); }
+    setSaving(false);
+  }
+
+  return <div className={"finding " + v.severity + (closed ? " closed" : "")}>
+    <h3>{v.vuln_class} <Badge sev={v.severity} /> <TriagePill status={v.triage} /></h3>
+    <div className="chips">
+      {v.cwe && <span className="chip mono">{v.cwe}</span>}
+      {v.owasp && <span className="chip">{v.owasp}</span>}
+      <span className="chip">confidence: {v.confidence}</span>
+      <span className="chip">{tr("nhãn", "label")}: {v.labeled_by}</span>
+      {(v.projects || []).map(p => <span key={p} className="chip proj">📁 {p}</span>)}
+    </div>
+    <div className="vmeta">
+      <span><b>Target</b> <span className="mono">{v.target}{v.endpoint}</span></span>
+      <span><b>{tr("Thấy", "Seen in")}</b> {v.occurrences} {tr("lần quét", v.occurrences === 1 ? "scan" : "scans")}</span>
+      <span><b>{tr("Lần đầu", "First seen")}</b> {fmtTime(v.first_seen)}</span>
+      <span><b>{tr("Gần nhất", "Last seen")}</b> {fmtTime(v.last_seen)}</span>
+    </div>
+    {(v.regressed || v.clean_scans_since > 0) && <div className="tags">
+      {v.regressed && <span className="tag-warn">{tr('🔁 Tái phát sau khi đánh dấu "Đã sửa"', '🔁 Reappeared after being marked "Fixed"')}</span>}
+      {v.clean_scans_since > 0 && <span className="tag-ok">
+        {tr(`✓ Không xuất hiện ở ${v.clean_scans_since} lần quét sau (${typeLabel(v.last_scan_type)}) — có thể đã được sửa`,
+          `✓ Absent from the next ${v.clean_scans_since} ${v.clean_scans_since === 1 ? "scan" : "scans"} (${typeLabel(v.last_scan_type)}) — may have been fixed`)}</span>}
+    </div>}
+    {v.explanation && <div className="kv"><b>{tr("Giải thích.", "Explanation.")}</b> {v.explanation}</div>}
+    <WhyFlagged rationale={v.rationale} agentNote={v.agent_note} />
+    {v.remediation && <div className="kv"><b>{tr("Khắc phục.", "Remediation.")}</b> {v.remediation}</div>}
+    {(v.request || v.response) && <details>
+      <summary>{tr("Bằng chứng mới nhất — request & response", "Latest evidence — request & response")}</summary>
+      {v.request && <pre>{"$ " + v.request}</pre>}
+      {v.response && <pre>{v.response}</pre>}
+    </details>}
+
+    <div className="triage-row no-print">
+      <select value={status} onChange={e => setStatus(e.target.value)} aria-label={tr("Trạng thái xử lý", "Triage status")}>
+        {Object.entries(TRIAGE).map(([k, t]) => <option key={k} value={k}>{t.label}</option>)}
+      </select>
+      <input value={note} onChange={e => setNote(e.target.value)} maxLength={500}
+        placeholder={tr("Ghi chú (vd: đã vá ở commit abc123)…", "Note (e.g. patched in commit abc123)…")} aria-label={tr("Ghi chú", "Note")} />
+      <button className="btn sm" onClick={save} disabled={!dirty || saving}>
+        {saving ? <span className="spin" /> : tr("Lưu", "Save")}</button>
+    </div>
+    {err && <div className="hint err">{err}</div>}
+    <div className="vlinks no-print">
+      <a href={rescan}>{tr("↻ Quét lại để xác nhận", "↻ Rescan to confirm")}</a>
+      {v.scans.slice(0, 4).map(r => <a key={r} href={`/history?run=${encodeURIComponent(r)}`} className="mono">{r}</a>)}
+      {v.scans.length > 4 && <span className="hint" style={{margin: 0}}>+{v.scans.length - 4} {tr("lần quét khác", "more scans")}</span>}
+    </div>
+  </div>;
+}
+
+function VulnsPage() {
+  const [vulns, setVulns] = useState(null);
+  const [types, setTypes] = useState([]);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [tab, setTab] = useState(() => {
+    const t = new URLSearchParams(location.search).get("tab");
+    return TABS.some(x => x.key === t) ? t : "active";
+  });
+  const [q, setQ] = useState("");
+  const [sevOn, setSevOn] = useState({critical: true, high: true, medium: true, low: true, info: false});
+
+  async function load() {
+    setLoading(true); setError("");
+    try { setVulns(await api("/api/vulns")); } catch (e) { setError(tr("Lỗi: ", "Error: ") + e.message); }
+    setLoading(false);
+  }
+  useEffect(() => { load(); api("/api/scan-types").then(setTypes).catch(() => {}); }, []);
+
+  const typeLabel = key => (types.find(t => t.key === key) || {}).label || key || "—";
+
+  async function saveTriage(id, status, note) {
+    const r = await api(`/api/vulns/${id}/triage`, {
+      method: "PUT", headers: {"Content-Type": "application/json"}, body: JSON.stringify({status, note})});
+    // Reload from the server: a status change also moves the card between tabs and can clear "regressed".
+    setVulns(await api("/api/vulns"));
+    return r;
+  }
+
+  const needle = q.trim().toLowerCase();
+  const inTab = (vulns || []).filter(TABS.find(t => t.key === tab).match);
+  const shown = inTab.filter(v => sevOn[v.severity] !== false &&
+    (!needle || [v.vuln_class, v.cwe, v.owasp, v.target, v.endpoint, v.triage_note]
+      .some(x => (x || "").toLowerCase().includes(needle))));
+  const hiddenInfo = inTab.filter(v => v.severity === "info").length;
+  const toggle = s => setSevOn(o => ({...o, [s]: !o[s]}));
+
+  return <div>
+    <AppBar active="vulns" />
+    <div className="wrap">
+      <Hero title={tr("Lỗ hổng", "Vulnerabilities")}>
+        {tr(<>Mọi lỗ hổng phát hiện qua <b>tất cả lần quét</b>, đã gộp trùng (cùng target + CWE + endpoint chỉ tính một lần).
+        Ghi lại bạn đang sửa, đã sửa hay bỏ qua — quét lại sau đó để xác nhận.</>,
+        <>Every vulnerability found across <b>all scans</b>, de-duplicated (the same target + CWE + endpoint counts once).
+        Record whether you are fixing, have fixed or dismissed it — then rescan to confirm.</>)}
+      </Hero>
+
+      <div className="card"><div className="card-b">
+        <div className="tabs">
+          {TABS.map(t => <button key={t.key} className={tab === t.key ? "on" : ""} onClick={() => setTab(t.key)}>
+            {t.label}<span className="count">{vulns ? vulns.filter(t.match).length : "…"}</span></button>)}
+        </div>
+        <div className="fbar">
+          <input value={q} onChange={e => setQ(e.target.value)} placeholder={tr("Lọc theo loại / CWE / OWASP / endpoint / ghi chú…", "Filter by type / CWE / OWASP / endpoint / note…")} />
+          <div className="sevchips">
+            {SEV_ORDER.map(s => <button key={s} className={"sevchip" + (sevOn[s] ? " on" : "")}
+              style={sevOn[s] ? {color: SEV[s].color, background: SEV[s].bg} : undefined}
+              aria-pressed={!!sevOn[s]} onClick={() => toggle(s)}>{SEV[s].label}</button>)}
+          </div>
+          <button className="icon-btn" title={tr("Làm mới", "Refresh")} onClick={load} disabled={loading}>↻</button>
+        </div>
+        {error && <div className="hint err">{error}</div>}
+        {vulns && <div className="hint" style={{margin: "0 0 4px"}}>{tr(`Hiển thị ${shown.length} / ${inTab.length} lỗ hổng.`, `Showing ${shown.length} / ${inTab.length} ${inTab.length === 1 ? "vulnerability" : "vulnerabilities"}.`)}</div>}
+      </div></div>
+
+      <div style={{marginTop: 18}}>
+        {!vulns && !error && <div className="card"><div className="empty"><span className="spin" /></div></div>}
+        {shown.map(v => <Vuln key={v.id} v={v} onSave={saveTriage} typeLabel={typeLabel} />)}
+
+        {vulns && shown.length === 0 && <div className="card"><div className="empty">
+          <div className="big">{vulns.length === 0 ? "🛡" : "🔍"}</div>
+          {vulns.length === 0
+            ? <><div><b>{tr("Chưa có lỗ hổng nào", "No vulnerabilities yet")}</b></div>
+                <div className="hint">{tr("Chưa có lần quét nào tạo ra báo cáo.", "No scan has produced a report yet.")} <a href="/scan">{tr("⚡ Quét mới", "⚡ New scan")}</a></div></>
+            : inTab.length === 0
+            ? <div><b>{tr("Không có lỗ hổng nào ở mục này", "No vulnerabilities in this tab")}</b></div>
+            : <><div><b>{tr("Không có lỗ hổng nào khớp bộ lọc", "No vulnerabilities match the filter")}</b></div>
+                {!sevOn.info && hiddenInfo > 0 && <div className="hint">
+                  {tr(`Có ${hiddenInfo} quan sát mức INFO đang bị ẩn (thường là response 401/403 bình thường).`,
+                    `${hiddenInfo} INFO-level ${hiddenInfo === 1 ? "observation is" : "observations are"} hidden (usually ordinary 401/403 responses).`)}{" "}
+                  <a href="#" onClick={e => { e.preventDefault(); toggle("info"); }}>{tr("Hiện INFO", "Show INFO")}</a></div>}</>}
+        </div></div>}
+      </div>
+
+      <footer>{FOOTER}</footer>
+    </div>
+  </div>;
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<VulnsPage />);
+</script>
+</body>
+</html>

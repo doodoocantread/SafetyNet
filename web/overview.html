@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SafetyNet — Tổng quan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;750&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<script src="/static/theme-init.js"></script>
+<link rel="stylesheet" href="/static/styles.css" />
+<script defer src="/static/codefall.js"></script>
+<script crossorigin src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone@7.25.6/babel.min.js"></script>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel" src="/static/shared.jsx"></script>
+<script type="text/babel">
+const DAYS = 14;
+document.title = tr("SafetyNet — Tổng quan", "SafetyNet — Overview");
+
+/* Scans per local calendar day, oldest → newest, for the last DAYS days. */
+function perDay(history) {
+  const key = d => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+  const counts = {};
+  history.forEach(h => { if (h.created_at) { const d = new Date(h.created_at); if (!isNaN(d)) counts[key(d)] = (counts[key(d)] || 0) + 1; } });
+  const out = [];
+  for (let i = DAYS - 1; i >= 0; i--) {
+    const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - i);
+    out.push({n: counts[key(d)] || 0, label: i === 0 ? tr("nay", "today") : `${d.getDate()}/${d.getMonth() + 1}`});
+  }
+  return out;
+}
+
+function Attention({ov, history}) {
+  const st = ov.scans.by_status;
+  const items = [];
+  if (ov.vulns.regressed) items.push({cls: "bad", icon: "🔁",
+    body: tr(<><b>{ov.vulns.regressed} lỗ hổng đã đánh dấu "Đã sửa" nhưng xuất hiện lại</b> ở lần quét mới hơn. <a href="/vulns?tab=active">Xem ngay →</a></>,
+      <><b>{ov.vulns.regressed} {ov.vulns.regressed === 1 ? "vulnerability" : "vulnerabilities"} marked "Fixed" reappeared</b> in a newer scan. <a href="/vulns?tab=active">View now →</a></>)});
+  const crit = ov.vulns.by_severity.critical + ov.vulns.by_severity.high;
+  if (crit) items.push({cls: "bad", icon: "🚨",
+    body: tr(<><b>{crit} lỗ hổng Critical/High</b> đang mở. <a href="/vulns?tab=active">Xử lý →</a></>,
+      <><b>{crit} Critical/High {crit === 1 ? "vulnerability" : "vulnerabilities"}</b> still open. <a href="/vulns?tab=active">Handle →</a></>)});
+  if (st.interrupted) items.push({cls: "warn", icon: "⚠️",
+    body: tr(<><b>{st.interrupted} lần quét bị gián đoạn</b> (server khởi động lại giữa chừng) — kết quả không kết luận được. <a href="/history">Mở lịch sử →</a></>,
+      <><b>{st.interrupted} {st.interrupted === 1 ? "scan was" : "scans were"} interrupted</b> (the server restarted mid-scan) — results are inconclusive. <a href="/history">Open history →</a></>)});
+  const broken = (st.failed || 0) + (st.error || 0);
+  if (broken) items.push({cls: "warn", icon: "⚠️",
+    body: tr(<><b>{broken} lần quét thất bại</b> — "không tìm thấy lỗ hổng" ở các lần này không có nghĩa là an toàn. Kiểm tra <a href="/system">Hệ thống</a> (Docker, agent CLI) hoặc nhật ký ở <a href="/history">Lịch sử</a>.</>,
+      <><b>{broken} {broken === 1 ? "scan" : "scans"} failed</b> — "no vulnerabilities found" in these scans does not mean safe. Check <a href="/system">System</a> (Docker, agent CLI) or the logs in <a href="/history">History</a>.</>)});
+  if (!items.length && history.length)
+    items.push({cls: "good", icon: "✅", body: tr(<><b>Không có gì cần chú ý.</b> Không có lỗ hổng nghiêm trọng đang mở, không có lần quét lỗi.</>,
+      <><b>Nothing needs attention.</b> No serious vulnerabilities are open and no scans have failed.</>)});
+  if (!items.length) return null;
+  return <div className="alerts">
+    {items.map((a, i) => <div key={i} className={"alert " + a.cls}><span>{a.icon}</span><div>{a.body}</div></div>)}
+  </div>;
+}
+
+function Overview() {
+  const [ov, setOv] = useState(null);
+  const [history, setHistory] = useState([]);
+  const [types, setTypes] = useState([]);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  async function load() {
+    setLoading(true); setError("");
+    try {
+      const [o, h] = await Promise.all([api("/api/overview"), api("/api/history")]);
+      setOv(o); setHistory(h);
+    } catch (e) { setError(tr("Lỗi: ", "Error: ") + e.message); }
+    setLoading(false);
+  }
+  useEffect(() => { load(); api("/api/scan-types").then(setTypes).catch(() => {}); }, []);
+
+  const typeLabel = key => (types.find(t => t.key === key) || {}).label || key || "—";
+  const days = perDay(history);
+  const maxDay = Math.max(1, ...days.map(d => d.n));
+
+  return <div>
+    <AppBar active="overview" />
+    <div className="wrap">
+      <Hero title={tr("Tổng quan", "Overview")}>
+        {tr(<>Bức tranh chung qua <b>mọi lần quét</b> trên máy này: còn bao nhiêu lỗ hổng đang mở, mức độ ra sao,
+        tập trung ở nhóm OWASP nào và mục tiêu nào rủi ro nhất.</>,
+        <>The big picture across <b>every scan</b> on this machine: how many vulnerabilities are still open, how severe
+        they are, which OWASP categories they cluster in and which target is the riskiest.</>)}
+      </Hero>
+
+      {error && <div className="hint err">{error}</div>}
+      {!ov && !error && <div className="card"><div className="empty"><span className="spin" /></div></div>}
+
+      {ov && ov.scans.total === 0 && <div className="card"><div className="empty">
+        <div className="big">🛡</div><div><b>{tr("Chưa có lần quét nào", "No scans yet")}</b></div>
+        <div className="hint">{tr("Bắt đầu một lần quét để tổng quan có dữ liệu.", "Start a scan so the overview has data.")} <a href="/scan">{tr("⚡ Quét mới", "⚡ New scan")}</a></div>
+      </div></div>}
+
+      {ov && ov.scans.total > 0 && <>
+        <Attention ov={ov} history={history} />
+
+        <div className="kpis">
+          {[
+            {n: ov.scans.total, l: tr("Lần quét", "Scans")},
+            {n: ov.vulns.open_actionable, l: tr("Lỗ hổng đang mở", "Open vulnerabilities"), cls: ov.vulns.open_actionable ? "high" : ""},
+            {n: ov.vulns.by_severity.critical + ov.vulns.by_severity.high, l: "Critical + High",
+              cls: ov.vulns.by_severity.critical + ov.vulns.by_severity.high ? "crit" : ""},
+            {n: ov.targets.length, l: tr("Mục tiêu", "Targets")},
+            {n: "$" + ov.scans.cost_usd.toFixed(2), l: tr("Tổng chi phí", "Total cost")},
+            {n: fmtDur(ov.scans.avg_duration_s), l: tr("Thời gian TB", "Avg duration")},
+          ].map((t, i) => <div key={i} className={"kpi " + (t.cls || "")}>
+            <div className="n">{t.n}</div><div className="l">{t.l}</div></div>)}
+        </div>
+
+        <div className="cols2">
+          <div className="card">
+            <div className="card-h"><p className="card-title">{tr("Mức độ nghiêm trọng (đang mở)", "Severity (open)")}</p></div>
+            <div className="card-b">
+              <SevDist counts={ov.vulns.by_severity} />
+              <div className="chips" style={{marginBottom: 0}}>
+                {Object.keys(TRIAGE).map(k => <span key={k} className="chip">
+                  {TRIAGE[k].label} · {ov.vulns.by_triage[k] || 0}</span>)}
+              </div>
+              <div className="hint">{tr("Mỗi lỗ hổng được tính một lần dù xuất hiện ở nhiều lần quét.", "Each vulnerability counts once even if it shows up in several scans.")}
+                <a href="/vulns"> {tr("Quản lý trạng thái →", "Manage status →")}</a></div>
+            </div>
+          </div>
+
+          <div className="card">
+            <div className="card-h"><p className="card-title">OWASP Top 10 (2021)</p></div>
+            <div className="card-b">
+              {ov.owasp.length
+                ? <BarList items={ov.owasp} />
+                : <div className="hint">{tr("Chưa có lỗ hổng mức Low trở lên để phân nhóm.", "No Low-or-higher vulnerabilities to group yet.")}</div>}
+              <div className="hint">{tr("Ánh xạ CWE → OWASP đến từ bảng tĩnh, không do LLM đoán.", "The CWE → OWASP mapping comes from a static table, not from LLM guesses.")}</div>
+            </div>
+          </div>
+        </div>
+
+        <div className="card">
+          <div className="card-h row">
+            <p className="card-title">{tr("Mục tiêu", "Targets")}</p>
+            <button className="icon-btn" title={tr("Làm mới", "Refresh")} onClick={load} disabled={loading}>↻</button>
+          </div>
+          <div className="card-b tbl-wrap">
+            <table className="tbl">
+              <thead><tr><th>Target</th><th className="num">{tr("Lần quét", "Scans")}</th><th className="num">{tr("Lỗ hổng mở", "Open vulns")}</th>
+                <th>{tr("Nghiêm trọng nhất", "Most severe")}</th><th>{tr("Quét gần nhất", "Last scan")}</th><th></th></tr></thead>
+              <tbody>{ov.targets.map(t => <tr key={t.target}>
+                <td className="mono wrapcell">{t.target}</td>
+                <td className="num">{t.scans}</td>
+                <td className="num">{t.open_vulns}</td>
+                <td>{t.worst ? <Badge sev={t.worst} /> : <span className="hint">—</span>}</td>
+                <td className="muted">{fmtTime(t.last_scan)}</td>
+                <td><a href={`/scan?target=${encodeURIComponent(t.target)}`}>{tr("Quét lại →", "Rescan →")}</a></td>
+              </tr>)}</tbody>
+            </table>
+          </div>
+        </div>
+
+        <div className="cols2" style={{marginTop: 18}}>
+          <div className="card">
+            <div className="card-h"><p className="card-title">{tr("Số lần quét", "Scans")} · {tr(`${DAYS} ngày qua`, `last ${DAYS} days`)}</p></div>
+            <div className="card-b">
+              <div className="daybars">
+                {days.map((d, i) => <div key={i} className="d" title={`${d.label}: ${d.n} ${tr("lần quét", d.n === 1 ? "scan" : "scans")}`}>
+                  <div className={"col" + (d.n ? "" : " zero")} style={{height: d.n ? `${Math.max(8, (d.n / maxDay) * 100)}%` : 2}} />
+                  <span className="dl">{i % 2 === (DAYS - 1) % 2 ? d.label : ""}</span>
+                </div>)}
+              </div>
+            </div>
+          </div>
+
+          <div className="card">
+            <div className="card-h row">
+              <p className="card-title">{tr("Quét gần đây", "Recent scans")}</p>
+              <a href="/history" style={{fontSize: 12}}>{tr("Tất cả →", "View all →")}</a>
+            </div>
+            <div className="card-b">
+              <div className="runs">
+                {history.slice(0, 6).map(h => <a key={h.run_id} className="run" href={`/history?run=${encodeURIComponent(h.run_id)}`}
+                    style={{color: "inherit", textDecoration: "none"}}>
+                  <span className="rtop">
+                    <span className="rid" title={h.target}>{h.target || h.run_id}</span>
+                    <StatusPill status={h.status} />
+                  </span>
+                  <span className="rmeta">{typeLabel(h.scan_type)} · {fmtTime(h.created_at)}</span>
+                </a>)}
+              </div>
+            </div>
+          </div>
+        </div>
+      </>}
+
+      <footer>{FOOTER}</footer>
+    </div>
+  </div>;
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<Overview />);
+</script>
+</body>
+</html>

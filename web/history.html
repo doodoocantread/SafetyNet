@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SafetyNet — Lịch sử quét</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;750&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<script src="/static/theme-init.js"></script>
+<link rel="stylesheet" href="/static/styles.css" />
+<script defer src="/static/codefall.js"></script>
+<script crossorigin src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone@7.25.6/babel.min.js"></script>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel" src="/static/shared.jsx"></script>
+<script type="text/babel">
+document.title = tr("SafetyNet — Lịch sử quét", "SafetyNet — Scan history");
+
+function History({items, activeRun, onOpen, onRefresh, loading, typeLabel}) {
+  const [q, setQ] = useState("");
+  const [st, setSt] = useState("");
+  const [proj, setProj] = useState(new URLSearchParams(location.search).get("project") || "");
+  const projects = [...new Set(items.map(h => h.project).filter(Boolean))].sort();
+  const needle = q.trim().toLowerCase();
+  const shown = items.filter(h =>
+    (!st || h.status === st) &&
+    (!proj || (proj === "__none__" ? !h.project : h.project === proj)) &&
+    (!needle || [h.project, h.target, h.run_id, h.model, typeLabel(h.scan_type)]
+      .some(v => (v || "").toLowerCase().includes(needle))));
+  return <div className="card">
+    <div className="card-b">
+      <div className="hfilter">
+        <input value={q} onChange={e => setQ(e.target.value)} placeholder={tr("Lọc theo dự án / URL / model…", "Filter by project / URL / model…")} />
+        {projects.length > 0 && <select value={proj} onChange={e => setProj(e.target.value)} title={tr("Dự án", "Project")}>
+          <option value="">{tr("Mọi dự án", "All projects")}</option>
+          {projects.map(p => <option key={p} value={p}>{p}</option>)}
+          <option value={"__none__"}>{tr("(chưa đặt tên)", "(no project)")}</option>
+        </select>}
+        <select value={st} onChange={e => setSt(e.target.value)} title={tr("Trạng thái", "Status")}>
+          <option value="">{tr("Tất cả", "All")}</option>
+          {Object.entries(STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+        </select>
+        <button className="icon-btn" title={tr("Làm mới", "Refresh")} onClick={onRefresh} disabled={loading}>↻</button>
+      </div>
+      <div className="runs">
+        {shown.map(h => <div key={h.run_id}
+          className={"run" + (activeRun === h.run_id ? " active" : "")}
+          onClick={() => onOpen(h.run_id)}>
+          <span className="rtop">
+            <span className="rid" title={h.target}>{h.target || h.run_id}</span>
+            <StatusPill status={h.status} />
+          </span>
+          <span className="chips">
+            {h.project && <span className="chip proj">📁 {h.project}</span>}
+            <span className="chip">{typeLabel(h.scan_type)}</span>
+            <span className="chip">{h.mode === "direct" ? tr("Trực tiếp", "Direct") : h.mode === "docker" ? "Docker" : "—"}</span>
+            <span className="chip mono">{h.model || tr("model mặc định", "default model")}</span>
+          </span>
+          <span className="rmeta">
+            {fmtTime(h.created_at)}
+            {h.has_report && ` · ${h.observations} observation${h.observations === 1 || LANG === "vi" ? "" : "s"} · $${(h.cost_usd || 0).toFixed(2)} · ${Math.round(h.wall_duration_s || 0)}s`}
+          </span>
+        </div>)}
+        {items.length === 0 && <span className="hint">{tr("Chưa có lần quét nào.", "No scans yet.")}</span>}
+        {items.length > 0 && shown.length === 0 && <span className="hint">{tr("Không có lần quét nào khớp bộ lọc.", "No scans match the filter.")}</span>}
+      </div>
+    </div>
+  </div>;
+}
+
+/* ---------- page ---------- */
+function HistoryPage() {
+  const [types, setTypes] = useState([]);
+  const [history, setHistory] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [view, setView] = useState(null);   // {src: "live", report, meta}
+  const [activeRun, setActiveRun] = useState(null);
+  const [error, setError] = useState("");
+
+  const typeLabel = key => (types.find(t => t.key === key) || {}).label || key || "—";
+
+  async function refresh() {
+    setLoading(true);
+    try { setHistory(await api("/api/history")); } catch (e) { /* list is optional */ }
+    setLoading(false);
+  }
+
+  async function open(run_id) {
+    setError(""); setActiveRun(run_id);
+    try {
+      const {meta, report} = await api(`/api/history/${run_id}`);
+      setView({src: "live", report, meta});
+      window.history.replaceState(null, "", `/history?run=${encodeURIComponent(run_id)}`);
+    } catch (e) { setError(tr("Lỗi: ", "Error: ") + e.message); }
+  }
+
+  useEffect(() => {
+    api("/api/scan-types").then(setTypes).catch(() => {});
+    refresh();
+    const run = new URLSearchParams(location.search).get("run");
+    if (run) open(run);
+  }, []);
+
+  return <div>
+    <AppBar active="history" />
+    <div className="wrap">
+      <div className="hero">
+        <h1>{tr("Lịch sử quét", "Scan history")}</h1>
+        <p>{tr("Mọi lần quét live đã chạy trên máy này. Chọn một lần để xem lại báo cáo, bằng chứng và trạng thái của nó.",
+          "Every live scan that has run on this machine. Pick one to review its report, evidence and status.")}</p>
+      </div>
+
+      <div className="grid">
+        <div>
+          <History items={history} activeRun={activeRun} onOpen={open}
+            onRefresh={refresh} loading={loading} typeLabel={typeLabel} />
+          {error && <div className="hint err">{error}</div>}
+        </div>
+
+        <div>
+          {view && view.report ? <Report rep={view.report} src={view.src} meta={view.meta}
+                typeLabel={typeLabel} /> :
+            view && view.meta ? <RunWithoutReport meta={view.meta} typeLabel={typeLabel} /> :
+            <div className="card"><div className="empty">
+              <div className="big">🛡</div>
+              <div><b>{tr("Chọn một lần quét", "Select a scan")}</b></div>
+              <div className="hint">{tr(<>Báo cáo của lần quét bạn chọn bên trái sẽ hiện ở đây.
+                Chưa có gì? <a href="/scan">Bắt đầu quét mới</a>.</>,
+                <>The report for the scan you pick on the left shows up here.
+                Nothing yet? <a href="/scan">Start a new scan</a>.</>)}</div>
+            </div></div>}
+        </div>
+      </div>
+
+      <footer>{FOOTER}</footer>
+    </div>
+  </div>;
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<HistoryPage />);
+</script>
+</body>
+</html>

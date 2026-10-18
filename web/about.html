@@ -1,0 +1,749 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SafetyNet — Phương pháp &amp; Đóng góp</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;750&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<script src="/static/theme-init.js"></script>
+<link rel="stylesheet" href="/static/styles.css" />
+<link rel="stylesheet" href="/static/about.css" />
+<script defer src="/static/codefall.js"></script>
+</head>
+<body>
+
+<header class="appbar">
+  <a class="brand" href="/"><span class="logo">🛡</span> SafetyNet <span class="ver">v0.1</span></a>
+  <nav class="mainnav" aria-label="Menu chính">
+    <a href="/" data-en="Overview">Tổng quan</a>
+    <a href="/scan" data-en="New scan">Quét mới</a>
+    <a href="/history" data-en="History">Lịch sử</a>
+    <a href="/vulns" data-en="Vulnerabilities">Lỗ hổng</a>
+    <a href="/about" class="on" aria-current="page" data-en="Method &amp;amp; Contributions">Phương pháp &amp; Đóng góp</a>
+    <a href="/system" data-en="System">Hệ thống</a>
+  </nav>
+  <div class="spacer"></div>
+  <span class="scopebadge"><span class="dot"></span> Local-only scope</span>
+  <button class="icon-btn lang-btn" id="lang" type="button"></button>
+  <button class="icon-btn" id="theme" title="Đổi giao diện" aria-label="Đổi giao diện">☀</button>
+</header>
+<nav class="toc" aria-label="Mục lục trang">
+  <a href="#topup">Top-up</a>
+  <a href="#kien-truc" data-en="Architecture">Kiến trúc</a>
+  <a href="#pipeline">Pipeline</a>
+  <a href="#agent">Agent</a>
+  <a href="#an-toan" data-en="Safety">An toàn</a>
+  <a href="#fact">Fact / Narrative</a>
+  <a href="#gioi-han" data-en="Limits">Giới hạn</a>
+</nav>
+
+<main class="wrap wide">
+
+  <!-- ============ HERO ============ -->
+  <div class="hero2">
+    <p class="eyebrow" data-en="Science project · top-up on PentestGPT">Dự án khoa học · top-up trên PentestGPT</p>
+    <h1 data-en="A powerful pentest agent, <em>inside a safety net.</em>">Một agent pentest mạnh, <em>đặt trong lưới an toàn.</em></h1>
+    <p data-en="<a href=&quot;https://github.com/greydgl/pentestgpt&quot; target=&quot;_blank&quot; rel=&quot;noopener&quot;>PentestGPT</a> gives you an LLM agent that scans for vulnerabilities on its own. SafetyNet <b>does not rewrite that agent</b> — it wraps it in a layer of <b>code-enforced limits</b> (local-only scanning, fixed scope, runs in Docker) and a layer of <b>traceable reporting</b> (every conclusion points back to the exact request/response that happened).">
+      <a href="https://github.com/greydgl/pentestgpt" target="_blank" rel="noopener">PentestGPT</a> cho một agent LLM
+      tự quét lỗ hổng. SafetyNet <b>không viết lại agent đó</b> — nó bọc quanh agent một lớp
+      <b>giới hạn bằng code</b> (chỉ quét local, scope cố định, chạy trong Docker) và một lớp
+      <b>báo cáo truy vết được</b> (mỗi kết luận quy về đúng request/response đã xảy ra).
+    </p>
+
+    <div class="formula" role="img" aria-label="SafetyNet bằng PentestGPT cộng lớp an toàn cộng lớp báo cáo">
+      <div class="box"><b>PentestGPT agent</b><span data-en="<span class=&quot;tag vendor&quot;>VENDOR</span>Supervisor + Executor, 10 vendored files"><span class="tag vendor">VENDOR</span>Supervisor + Executor, vendor 10 file</span></div>
+      <div class="op">+</div>
+      <div class="box up"><b data-en="Safety net">Lưới an toàn</b><span data-en="<span class=&quot;tag new&quot;>NEW</span>whitelist · fixed scope · Docker · audit log"><span class="tag new">MỚI</span>whitelist · scope cố định · Docker · audit log</span></div>
+      <div class="op">+</div>
+      <div class="box up"><b data-en="Evidence-backed report">Báo cáo có bằng chứng</b><span data-en="<span class=&quot;tag new&quot;>NEW</span>fact ⨝ trace → label → OWASP → Markdown/PDF"><span class="tag new">MỚI</span>fact ⨝ trace → nhãn → OWASP → Markdown/PDF</span></div>
+    </div>
+
+    <div class="stats kpis" aria-label="Số liệu codebase">
+      <div class="kpi"><div class="n" data-en="~1,210">~1.210</div><div class="l" data-en="lines of host app (SafetyNet)">dòng host app (SafetyNet)</div></div>
+      <div class="kpi"><div class="n" data-en="~3,960">~3.960</div><div class="l" data-en="lines of vendored agent">dòng agent vendor</div></div>
+      <div class="kpi"><div class="n">5</div><div class="l" data-en="safety invariants">bất biến an toàn</div></div>
+      <div class="kpi"><div class="n">2</div><div class="l">engine: live · replay</div></div>
+    </div>
+  </div>
+
+  <!-- ============ TOP-UP ============ -->
+  <section id="topup">
+    <p class="eyebrow" data-en="01 · What’s improved">01 · Điểm cải tiến</p>
+    <h2 class="sec" data-en="What PentestGPT has, what SafetyNet adds">PentestGPT có gì, SafetyNet thêm gì</h2>
+    <p class="lede" data-en="PentestGPT is a command-line tool that solves CTFs / pentests automatically. SafetyNet keeps that “brain” and adds what it takes to turn it into a tool that is <i>safe to demo</i> and <i>produces readable reports</i>.">
+      PentestGPT là công cụ chạy dòng lệnh để giải CTF / pentest tự động. SafetyNet giữ phần “bộ não” đó và
+      thêm những thứ cần có để biến nó thành một công cụ <i>an toàn để trình diễn</i> và <i>cho ra báo cáo đọc được</i>.
+    </p>
+
+    <div class="tablewrap">
+      <table class="cmp">
+        <thead><tr><th data-en="Aspect">Khía cạnh</th><th>PentestGPT (upstream)</th><th>SafetyNet (top-up)</th></tr></thead>
+        <tbody>
+          <tr><th data-en="Purpose">Mục đích</th>
+            <td data-en="Automatically solves CTFs / pentests.">Tự động giải CTF / pentest.</td>
+            <td class="up-col" data-en="Scans <b>local</b> web apps you are allowed to test → a vulnerability report for human readers.">Quét web <b>local</b> được phép → báo cáo lỗ hổng cho người đọc.</td></tr>
+          <tr><th data-en="Choosing a target">Chọn target</th>
+            <td data-en="Free-form <code>--target</code> parameter; the README does not describe any limits.">Tham số <code>--target</code> tự do; README không mô tả giới hạn.</td>
+            <td class="up-col" data-en="<span class=&quot;tag new&quot;>NEW</span>Hard whitelist: only <code>localhost</code> / <code>127.0.0.0/8</code> / <code>::1</code>, checked <i>before</i> anything is spawned."><span class="tag new">MỚI</span>Whitelist cứng: chỉ <code>localhost</code> / <code>127.0.0.0/8</code> / <code>::1</code>, kiểm <i>trước khi</i> spawn bất cứ thứ gì.</td></tr>
+          <tr><th data-en="Scan scope">Phạm vi quét</th>
+            <td data-en="Described with a free-form <code>--instruction</code>.">Mô tả bằng <code>--instruction</code> tự do.</td>
+            <td class="up-col" data-en="<span class=&quot;tag new&quot;>NEW</span>4 <b>goal templates written in code</b>. Users only pick a type; they never type the scope."><span class="tag new">MỚI</span>4 <b>goal template viết sẵn</b> trong code. Người dùng chỉ chọn loại, không gõ scope.</td></tr>
+          <tr><th data-en="Isolation">Cô lập</th>
+            <td data-en="A Docker image exists; using it is optional.">Có image Docker, dùng tuỳ chọn.</td>
+            <td class="up-col" data-en="<span class=&quot;tag new&quot;>NEW</span>By default the agent runs in a container; the host app only calls <code>docker run</code> and never imports the agent. A <code>direct</code> mode (no container) exists but must be enabled deliberately on the server."><span class="tag new">MỚI</span>Mặc định agent chạy trong container; host app chỉ gọi <code>docker run</code>, không import agent. Có thể chọn chế độ <code>direct</code> (không container) nhưng phải bật chủ động ở server.</td></tr>
+          <tr><th data-en="Interface">Giao diện</th>
+            <td>CLI.</td>
+            <td class="up-col" data-en="<span class=&quot;tag new&quot;>NEW</span>“Report Studio” web UI: async jobs, status polling, view/print/download reports."><span class="tag new">MỚI</span>Web “Report Studio”: job bất đồng bộ, poll trạng thái, xem/in/tải báo cáo.</td></tr>
+          <tr><th data-en="Reports">Báo cáo</th>
+            <td data-en="Has a reporting step at the end; the format is not described.">Có bước reporting ở cuối; định dạng không được mô tả.</td>
+            <td class="up-col" data-en="<span class=&quot;tag new&quot;>NEW</span>Structured findings: request → response, severity, CWE, OWASP, explanation, remediation. Export to Markdown / Print-PDF."><span class="tag new">MỚI</span>Finding có cấu trúc: request → response, severity, CWE, OWASP, giải thích, khắc phục. Xuất Markdown / In-PDF.</td></tr>
+          <tr><th data-en="Evidence tracing">Truy vết bằng chứng</th>
+            <td class="none">—</td>
+            <td class="up-col" data-en="<span class=&quot;tag new&quot;>NEW</span>The <code>summary.json ⨝ traces/</code> join: each finding points back to the exact tool event in the trace."><span class="tag new">MỚI</span>Phép join <code>summary.json ⨝ traces/</code>: mỗi finding trỏ về đúng sự kiện tool trong trace.</td></tr>
+          <tr><th data-en="Anti-hallucination">Chống LLM bịa</th>
+            <td class="none">—</td>
+            <td class="up-col" data-en="<span class=&quot;tag new&quot;>NEW</span>Separates <b>fact</b> (deterministic) from <b>narrative</b> (LLM); CWE → OWASP is a static table; evidence is framed to resist prompt injection."><span class="tag new">MỚI</span>Tách <b>fact</b> (tất định) khỏi <b>narrative</b> (LLM); CWE → OWASP là bảng tĩnh; evidence đóng khung chống prompt-injection.</td></tr>
+          <tr><th data-en="Honesty on failure">Trung thực khi lỗi</th>
+            <td class="none">—</td>
+            <td class="up-col" data-en="<span class=&quot;tag new&quot;>NEW</span><code>Report.conclusive</code>: distinguishes “no vulnerabilities found” from “run failed, inconclusive”."><span class="tag new">MỚI</span><code>Report.conclusive</code>: phân biệt “không tìm thấy lỗ hổng” với “run lỗi, không kết luận được”.</td></tr>
+          <tr><th>Demo</th>
+            <td data-en="Needs an LLM + a real target.">Cần LLM + target thật.</td>
+            <td class="up-col" data-en="<span class=&quot;tag new&quot;>NEW</span><code>ReplayEngine</code> reads a saved run: no Docker, no cost, deterministic."><span class="tag new">MỚI</span><code>ReplayEngine</code> đọc run đã lưu: không Docker, không tốn phí, tất định.</td></tr>
+          <tr><th data-en="Logging">Nhật ký</th>
+            <td data-en="Langfuse telemetry on by default (can be turned off).">Telemetry Langfuse bật mặc định (có thể tắt).</td>
+            <td class="up-col" data-en="<span class=&quot;tag new&quot;>NEW</span>Local JSONL <code>runs/audit.log</code>: records target, goal and time <i>before</i> anything runs."><span class="tag new">MỚI</span><code>runs/audit.log</code> JSONL cục bộ: ghi target, goal, thời điểm <i>trước</i> khi chạy.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note" data-en="The upstream column is based on PentestGPT’s public README and may have changed in newer versions. The “NEW” parts are written by SafetyNet (the <code>src/safetynet/</code> and <code>web/</code> folders); the agent in <code>agent_image/</code> is vendored code.">Cột upstream dựa trên README công khai của PentestGPT và có thể đã khác ở bản mới hơn. Phần “MỚI” là các thành phần do SafetyNet viết (thư mục <code>src/safetynet/</code>, <code>web/</code>); agent trong <code>agent_image/</code> là mã vendor.</p>
+  </section>
+
+  <!-- ============ KIẾN TRÚC ============ -->
+  <section id="kien-truc">
+    <p class="eyebrow" data-en="02 · Architecture">02 · Kiến trúc</p>
+    <h2 class="sec" data-en="Two worlds, one file-based contract">Hai thế giới, một hợp đồng bằng file</h2>
+    <p class="lede" data-en="The code is split into two parts that know nothing about each other. The host app orchestrates and writes the report; the agent only runs inside a container. They meet only through <b>files on disk</b> — so a demo needs no Docker, it just reads those same files back.">
+      Code chia làm hai phần không biết gì về nhau. Host app điều phối và viết báo cáo; agent chỉ chạy trong
+      container. Chúng chỉ gặp nhau qua <b>file trên đĩa</b> — nên muốn demo không cần Docker, chỉ cần đọc lại đúng các file đó.
+    </p>
+    <div class="worlds">
+      <div class="world host">
+        <h3>Host app <span class="mono" style="font-size:12px;color:var(--fg-faint)">src/safetynet</span></h3>
+        <div class="sub" data-en="FastAPI · your machine · <span class=&quot;tag new&quot;>NEW</span>">FastAPI · máy của bạn · <span class="tag new">MỚI</span></div>
+        <ul>
+          <li data-en="Validates the URL, maps the scan type → a fixed goal">Kiểm tra URL, ánh xạ loại scan → goal cố định</li>
+          <li data-en="Builds <code>docker run</code> (or runs the CLI directly if <code>direct</code> is enabled), 2 parallel scans, 600s timeout">Sinh <code>docker run</code> (hoặc chạy CLI trực tiếp nếu bật <code>direct</code>), giới hạn 2 scan song song, timeout 600s</li>
+          <li data-en="Reads results, labels them, builds the report">Đọc kết quả, gán nhãn, dựng báo cáo</li>
+          <li data-en="<b>Never imports</b> a single line of the agent"><b>Không import</b> một dòng nào của agent</li>
+        </ul>
+      </div>
+      <div class="world vendor">
+        <h3>Agent <span class="mono" style="font-size:12px;color:var(--fg-faint)">agent_image/pentestgpt_agent</span></h3>
+        <div class="sub" data-en="Inside a Docker container · non-root user · <span class=&quot;tag vendor&quot;>VENDOR</span>">Trong container Docker · user không phải root · <span class="tag vendor">VENDOR</span></div>
+        <ul>
+          <li data-en="Supervisor (LLM) plans, Executor (LLM) runs commands such as <code>curl</code>…">Supervisor (LLM) lên kế hoạch, Executor (LLM) chạy lệnh <code>curl</code>…</li>
+          <li data-en="State lives in SQLite; every LLM output passes through validators">Trạng thái trong SQLite; mọi output LLM qua bộ validator</li>
+          <li data-en="Writes <code>summary.json</code> + <code>traces/</code> to the mounted folder">Ghi <code>summary.json</code> + <code>traces/</code> ra thư mục mount</li>
+          <li data-en="Runs with <code>FULL_ACCESS</code> permissions — which is why it needs a container">Chạy quyền <code>FULL_ACCESS</code> — vì thế cần container</li>
+        </ul>
+      </div>
+    </div>
+    <div class="contract" data-en="<code>runs/&amp;lt;run_id&amp;gt;/summary.json</code> &amp;nbsp;+&amp;nbsp; <code>runs/&amp;lt;run_id&amp;gt;/traces/&amp;lt;episode&amp;gt;/events.jsonl</code>
+      &amp;nbsp;— the only contract between the two sides"><code>runs/&lt;run_id&gt;/summary.json</code> &nbsp;+&nbsp; <code>runs/&lt;run_id&gt;/traces/&lt;episode&gt;/events.jsonl</code>
+      &nbsp;— hợp đồng duy nhất giữa hai bên</div>
+  </section>
+
+  <!-- ============ PIPELINE ============ -->
+  <section id="pipeline">
+    <p class="eyebrow" data-en="03 · Processing flow">03 · Luồng xử lý</p>
+    <h2 class="sec" data-en="From a URL to a report in 7 steps">Từ một URL đến một báo cáo, 7 bước</h2>
+    <p class="lede" data-en="Click each step to see what it does, which file it lives in and what it protects.">Bấm vào từng bước để xem nó làm gì, nằm ở file nào, và bảo vệ điều gì.</p>
+
+    <div class="pipe" role="tablist" aria-label="Các bước của pipeline" id="pipe"></div>
+    <div class="pdetail" id="pdetail" role="tabpanel" aria-live="polite"></div>
+  </section>
+
+  <!-- ============ AGENT ============ -->
+  <section id="agent">
+    <p class="eyebrow" data-en="04 · Inside the agent">04 · Bên trong agent</p>
+    <h2 class="sec" data-en="The LLM only proposes — deterministic code decides">LLM chỉ đề xuất — code tất định quyết định</h2>
+    <p class="lede" data-en="This mechanism is inherited from PentestGPT. Understanding it shows why SafetyNet can trust the data the agent returns: no statement from the LLM touches state without being checked first.">
+      Đây là cơ chế kế thừa từ PentestGPT. Hiểu nó giúp thấy vì sao SafetyNet tin được dữ liệu mà agent trả về:
+      không câu nào của LLM chạm vào trạng thái mà chưa qua kiểm tra.
+    </p>
+
+    <div class="loop">
+      <div class="role">
+        <h3>Supervisor <span class="badge" data-en="LLM · ≤ 4 turns">LLM · ≤ 4 lượt</span></h3>
+        <dl>
+          <dt data-en="What it does">Làm gì</dt><dd data-en="Picks 1 <code>ready</code> task, or proposes <b>at most 1</b> new task, or <code>finish</code>.">Chọn 1 task đang <code>ready</code>, hoặc đề xuất <b>tối đa 1</b> task mới, hoặc <code>finish</code>.</dd>
+          <dt data-en="Output">Đầu ra</dt><dd data-en="JSON per schema → <code>SupervisorDecision</code>">JSON theo schema → <code>SupervisorDecision</code></dd>
+          <dt>Validator</dt><dd><code>plan.compile_plan</code></dd>
+        </dl>
+      </div>
+      <div class="role">
+        <h3>Executor <span class="badge" data-en="LLM · 4–9 turns">LLM · 4–9 lượt</span></h3>
+        <dl>
+          <dt data-en="What it does">Làm gì</dt><dd data-en="Does exactly <b>1 task</b>, returning <code>done / progress / blocked / failed</code> with a quoted piece of evidence.">Làm đúng <b>1 task</b>, trả <code>done / progress / blocked / failed</code> kèm trích dẫn bằng chứng.</dd>
+          <dt data-en="Output">Đầu ra</dt><dd data-en="JSON per schema → <code>ExecutionDelta</code>">JSON theo schema → <code>ExecutionDelta</code></dd>
+          <dt>Validator</dt><dd><code>execution.compile_execution</code></dd>
+        </dl>
+      </div>
+    </div>
+
+    <div class="cycle" aria-label="Vòng lặp">
+      <span class="s llm" data-en="Supervisor proposes">Supervisor đề xuất</span><i>→</i>
+      <span class="s code" data-en="compile_plan validates">compile_plan kiểm tra</span><i>→</i>
+      <span class="s code" data-en="writes SQLite (revision +1)">ghi SQLite (revision +1)</span><i>→</i>
+      <span class="s llm" data-en="Executor runs the task">Executor chạy task</span><i>→</i>
+      <span class="s code" data-en="compile_execution validates">compile_execution kiểm tra</span><i>→</i>
+      <span class="s code" data-en="writes SQLite">ghi SQLite</span><i>↺</i>
+    </div>
+    <div class="legend"><span data-en="<span class=&quot;sw&quot; style=&quot;background:var(--high)&quot;></span>LLM (untrusted)"><span class="sw" style="background:var(--high)"></span>LLM (không tin cậy)</span><span data-en="<span class=&quot;sw&quot; style=&quot;background:var(--ok)&quot;></span>Deterministic code (trusted)"><span class="sw" style="background:var(--ok)"></span>Code tất định (tin cậy)</span></div>
+
+    <div class="principle" data-en="<b>Principle:</b> every LLM output passes through a compiler before it touches SQLite. The LLM cannot “write” state — it can only <i>ask</i>, and the code decides whether to accept."><b>Nguyên tắc:</b> mọi output của LLM đi qua một bộ biên dịch trước khi chạm vào SQLite. LLM không thể “ghi” trạng thái — nó chỉ có thể <i>xin</i>, và code quyết định có chấp nhận hay không.</div>
+
+    <div class="rules">
+      <div class="rule" data-en="<b>Target must match byte for byte</b>A task is valid only if its target equals an allowed target; blocks <code>..</code>, <code>%</code>, <code>\</code>, userinfo, fragment."><b>Target phải trùng từng byte</b>Task chỉ hợp lệ nếu target trùng một target được phép; chặn <code>..</code>, <code>%</code>, <code>\</code>, userinfo, fragment.</div>
+      <div class="rule" data-en="<b>Each decision goes exactly one way</b>Either <code>next_task_id</code> or <code>finish</code>; at most 1 new task, and it must be chosen immediately."><b>Mỗi quyết định đúng một hướng</b>Hoặc <code>next_task_id</code>, hoặc <code>finish</code>; tối đa 1 task mới và phải được chọn ngay.</div>
+      <div class="rule" data-en="<b>TEST tasks may not exploit</b>Rejects phrases such as “read the flag”, “reverse shell”, “exfiltrat…”."><b>Task TEST không được khai thác</b>Từ chối cụm như “read the flag”, “reverse shell”, “exfiltrat…”.</div>
+      <div class="rule" data-en="<b>EXPLOIT needs a basis</b>Must cite the latest completed TEST observation for the same target."><b>EXPLOIT phải có cơ sở</b>Phải trích observation TEST mới nhất, đã hoàn tất, cùng target.</div>
+      <div class="rule" data-en="<b>Evidence must be verbatim</b><code>evidence_excerpt</code> must be an exact quote from the output of a successful tool call in the trace — it cannot be invented."><b>Bằng chứng phải là nguyên văn</b><code>evidence_excerpt</code> phải là đoạn trích đúng nguyên văn từ output của một tool call thành công trong trace — không thể bịa.</div>
+      <div class="rule" data-en="<b>Crash recovery</b>An episode that already exists is not rerun, only its trace is re-read; the trace is append-only with <code>fsync</code>."><b>Phục hồi sau crash</b>Episode đã tồn tại thì không chạy lại, chỉ đọc lại trace; trace append-only có <code>fsync</code>.</div>
+    </div>
+  </section>
+
+  <!-- ============ PLAYGROUND: GATE ============ -->
+  <section id="an-toan">
+    <p class="eyebrow" data-en="05 · Safety net">05 · Lưới an toàn</p>
+    <h2 class="sec" data-en="Try the safety gate">Thử cổng an toàn</h2>
+    <p class="lede" data-en="The first two rules run <b>before</b> Docker is called, and they are code, not a reminder to the LLM. Below is a browser-side simulation of <code>config.validate_target</code> and <code>goal_for</code> — try typing any URL.">
+      Hai luật đầu chạy <b>trước khi</b> Docker được gọi, và là code chứ không phải lời nhắc cho LLM.
+      Bên dưới là bản mô phỏng phía trình duyệt của <code>config.validate_target</code> và <code>goal_for</code> — thử gõ URL bất kỳ.
+    </p>
+
+    <div class="play">
+      <div class="card"><div class="card-b">
+        <p class="card-title" data-en="Rule 1 · Target whitelist">Luật 1 · Whitelist target</p>
+        <div class="field" style="margin-top:10px">
+          <label class="label" for="gate-url">Target URL</label>
+          <input id="gate-url" value="http://127.0.0.1:3000" spellcheck="false" autocomplete="off" />
+        </div>
+        <div class="chipbtns" id="gate-presets"></div>
+        <div class="verdict" id="gate-verdict" aria-live="polite"></div>
+      </div></div>
+
+      <div class="card"><div class="card-b">
+        <p class="card-title" data-en="Rule 2 · Fixed scope">Luật 2 · Scope cố định</p>
+        <div class="field" style="margin-top:10px">
+          <label class="label" for="scan-type" data-en="Scan type (the user can only pick, never type)">Loại scan (người dùng chỉ được chọn, không được gõ)</label>
+          <select id="scan-type"></select>
+        </div>
+        <div class="goalbox"><small data-en="Goal sent verbatim to the agent">Goal gửi nguyên văn cho agent</small><span id="goal-out"></span></div>
+        <div class="hint" data-en="The agent never receives scope text from the user, so it cannot be “asked” to scan anything else.">Agent không bao giờ nhận văn bản scope từ người dùng, nên không thể bị “nhờ” quét thứ khác.</div>
+      </div></div>
+    </div>
+    <p class="note" data-en="This simulation re-implements the logic in JavaScript for illustration; the real gate runs on the Python server (<code>config.py</code>) and is the only thing that is trusted.">Bản mô phỏng viết lại logic bằng JavaScript để minh hoạ; cổng thật chạy ở server Python (<code>config.py</code>) và là thứ duy nhất được tin.</p>
+
+    <h3 style="margin:34px 0 12px;font-size:17px" data-en="The five invariants and where they are enforced">Năm bất biến và nơi chúng được thực thi</h3>
+    <div class="inv" id="inv"></div>
+  </section>
+
+  <!-- ============ JOIN DEMO ============ -->
+  <section id="fact">
+    <p class="eyebrow" data-en="06 · Fact and Narrative">06 · Fact và Narrative</p>
+    <h2 class="sec" data-en="The join: finding the request that caused a response">Phép join: tìm lại request đã gây ra response</h2>
+    <p class="lede" data-en="<code>summary.json</code> keeps only the <b>response</b> of each observation. The request (the <code>curl</code> command with its payload) lives in the trace. The adapter joins the two — fully deterministic, no LLM call. Below is real data from the sample run
+      <code>sqli-claude-03</code> (Juice Shop).">
+      <code>summary.json</code> chỉ giữ <b>response</b> của mỗi observation. Request (câu lệnh <code>curl</code> với payload) nằm trong
+      trace. Adapter nối hai nơi lại — hoàn toàn tất định, không gọi LLM. Dưới đây là dữ liệu thật từ run mẫu
+      <code>sqli-claude-03</code> (Juice Shop).
+    </p>
+
+    <div class="tabs" role="tablist" aria-label="Chọn observation" id="join-tabs"></div>
+    <div class="join" id="join"></div>
+    <div class="stepline">
+      <button class="btn auto" id="join-next">▶ Chạy từng bước</button>
+      <button class="btn ghost sm" id="join-reset" data-en="Reset">Đặt lại</button>
+      <div class="msg" id="join-msg" aria-live="polite"></div>
+    </div>
+
+    <div class="fn" style="margin-top:34px">
+      <div class="col f">
+        <h3>FACT <span class="flag fact" data-en="deterministic">tất định</span></h3>
+        <ul>
+          <li data-en="<code>adapter.py</code> — no LLM; the same input always gives the same output"><code>adapter.py</code> — không LLM, cùng đầu vào luôn ra cùng đầu ra</li>
+          <li data-en="request · response · <code>evidence_sequences</code> · error state · task kind">request · response · <code>evidence_sequences</code> · trạng thái lỗi · loại task</li>
+          <li data-en="Can be re-verified by opening the trace">Có thể kiểm tra lại bằng cách mở trace</li>
+        </ul>
+      </div>
+      <div class="col n">
+        <h3>NARRATIVE <span class="flag nar" data-en="interpretation">diễn giải</span></h3>
+        <ul>
+          <li data-en="<code>labeling.py</code> / <code>labeling_llm.py</code> — assign vulnerability class, severity, CWE"><code>labeling.py</code> / <code>labeling_llm.py</code> — gán loại lỗ hổng, severity, CWE</li>
+          <li data-en="Explanations and remediation advice (written in Vietnamese)">Giải thích và khuyến nghị khắc phục bằng tiếng Việt</li>
+          <li data-en="Carries <code>confidence</code> and <code>labeled_by</code> so you know who labeled it">Có <code>confidence</code> và <code>labeled_by</code> để biết ai gán nhãn</li>
+        </ul>
+      </div>
+    </div>
+    <div class="bridge" data-en="<b>The bridge:</b> CWE → OWASP Top 10 (2021) is a <b>static lookup table</b> in <code>owasp.py</code> (22 CWEs), whether the label came from rules or from the LLM. The LLM may only answer “which CWE is this observation”, never invent an OWASP category.">
+      <b>Cầu nối:</b> CWE → OWASP Top 10 (2021) là <b>bảng tra tĩnh</b> trong <code>owasp.py</code> (22 CWE), dù nhãn do luật hay do LLM sinh ra.
+      LLM chỉ được trả lời “observation này là CWE nào”, không được tự bịa nhóm OWASP.
+    </div>
+
+    <h3 style="margin:30px 0 4px;font-size:17px" data-en="Try the labelers">Thử bộ gán nhãn</h3>
+    <p class="lede" style="margin-bottom:12px" data-en="The same finding, two ways to label it. By default <code>HeuristicLabeler</code> (offline) runs; with <code>ANTHROPIC_API_KEY</code> set it uses <code>LLMLabeler</code>.">Cùng một finding, hai cách gán nhãn. Mặc định chạy <code>HeuristicLabeler</code> (offline); có <code>ANTHROPIC_API_KEY</code> thì dùng <code>LLMLabeler</code>.</p>
+    <div class="tabs" role="tablist" aria-label="Chọn bộ gán nhãn" id="lab-tabs"></div>
+    <div class="card"><div class="card-b" id="lab-out"></div></div>
+  </section>
+
+  <!-- ============ LIMITATIONS ============ -->
+  <section id="gioi-han">
+    <p class="eyebrow" data-en="07 · Honest about the limits">07 · Trung thực về giới hạn</p>
+    <h2 class="sec" data-en="What is not finished">Những gì chưa hoàn thiện</h2>
+    <p class="lede" data-en="Listing weaknesses plainly is part of the scientific method. These are the issues found while reviewing the code, and how to fix them.">Liệt kê rõ điểm yếu cũng là một phần của phương pháp khoa học. Đây là các vấn đề đã tìm thấy khi rà code, và hướng sửa.</p>
+    <div class="lim">
+      <div class="limcard" style="border-left-color:var(--crit)" data-en="<b>A real run in direct mode confirmed the risk that was warned about</b>Ran 3 real models (2026-10-15, <code>mode=direct</code>): <code>claude-opus-5-5</code> was blocked by Anthropic’s own safety filter; <code>claude-sonnet-5-5</code>, finding a target with no API, read the <code>src/safetynet/</code> source on its own and probed SafetyNet’s own API on port 8000 (blocked by <code>validate_target</code> so no real harm, but it proves there is no boundary); <code>claude-haiku-5-5</code> scanned the real target correctly, found the <code>category</code> parameter and a boolean-based SQLi test came back clean — but the <i>vendor itself</i> failed it because its 2054-character summary exceeded the hard 2000-character limit (<code>execution.py:309</code>). Details: README section “Kết quả thử nghiệm model” (model test results)."><b>Thử thật ở chế độ direct xác nhận đúng rủi ro đã cảnh báo</b>
+        Chạy 3 model thật (2026-10-15, <code>mode=direct</code>): <code>claude-opus-5-5</code> bị chính
+        bộ lọc an toàn của Anthropic chặn; <code>claude-sonnet-5-5</code> khi gặp target không có API
+        đã tự ý đọc mã nguồn <code>src/safetynet/</code> và dò chính API SafetyNet ở cổng 8000 (bị
+        <code>validate_target</code> chặn nên không gây hậu quả thật, nhưng chứng minh không có ranh
+        giới); <code>claude-haiku-5-5</code> quét đúng target thật, tìm được tham số <code>category</code>
+        và test SQLi boolean-based cho kết quả sạch — nhưng bị <i>chính vendor</i> đánh fail vì tóm tắt
+        dài 2054 ký tự, vượt giới hạn cứng 2000 ký tự (<code>execution.py:309</code>). Chi tiết: README
+        mục “Kết quả thử nghiệm model”.</div>
+      <div class="limcard" data-en="<b>The container is not yet a real safety boundary</b><code>docker run</code> currently has no <code>--cap-drop</code>, <code>--memory</code>, <code>--pids-limit</code>, and network egress is still open. Fix: tighten network + privileges + resources (<code>engines/live.py</code>)."><b>Container chưa là ranh giới an toàn thực sự</b>
+        <code>docker run</code> hiện chưa có <code>--cap-drop</code>, <code>--memory</code>, <code>--pids-limit</code>, và egress mạng còn mở. Hướng sửa: siết mạng + quyền + tài nguyên (<code>engines/live.py</code>).</div>
+      <div class="limcard" data-en="<b>A timeout may not stop the container</b><code>proc.kill()</code> kills the <code>docker</code> client process, not the container. Fix: set <code>--name</code> and <code>docker kill</code> on timeout."><b>Timeout chưa chắc dừng container</b>
+        <code>proc.kill()</code> giết tiến trình client <code>docker</code>, không phải container. Hướng sửa: đặt <code>--name</code> và <code>docker kill</code> khi hết giờ.</div>
+      <div class="limcard" data-en="<b>The SQLi regex can false-positive</b>The <code>--</code> branch also matches long curl flags such as <code>--max-time</code>. Fix: match only on the payload, not the whole command line."><b>Regex SQLi có thể báo nhầm</b>
+        Nhánh <code>--</code> khớp cả cờ dài của curl như <code>--max-time</code>. Hướng sửa: chỉ khớp trên phần payload, không phải cả dòng lệnh.</div>
+      <div class="limcard" data-en="<b>Uneven test coverage</b>Whitelist, audit and engine helpers are tested; <code>adapter</code>, labelers, <code>owasp</code> and <code>report</code> are <i>not</i> yet. The sample run can serve as a golden test."><b>Độ phủ test lệch</b>
+        Đã test whitelist, audit, helper của engine; <i>chưa</i> test <code>adapter</code>, labeler, <code>owasp</code>, <code>report</code>. Run mẫu có thể dùng làm golden test.</div>
+      <div class="limcard" data-en="<b>Labels are regenerated on every view</b>Every report open calls the LLM again → costs money and results may change. Fix: cache labels by <code>(run_id, finding.id, model)</code>."><b>Gán nhãn lại mỗi lần xem</b>
+        Mỗi lần mở report là gọi lại LLM → tốn tiền và kết quả có thể đổi. Hướng sửa: cache nhãn theo <code>(run_id, finding.id, model)</code>.</div>
+      <div class="limcard" data-en="<b>The demo needs the Internet</b>The pages load React from a CDN (unpkg) and Google Fonts. This explainer page does not need React but still loads fonts from Google."><b>Demo cần Internet</b>
+        Trang dùng React qua CDN (unpkg) và Google Fonts. Trang giải thích này thì không cần React, nhưng vẫn tải font từ Google.</div>
+    </div>
+  </section>
+
+  <footer class="pgfoot">
+    <div class="hint" style="text-align:center" data-en="SafetyNet · science project · vendored agent from <a href=&quot;https://github.com/greydgl/pentestgpt&quot; target=&quot;_blank&quot; rel=&quot;noopener&quot;>PentestGPT</a> (MIT) ·
+      <a href=&quot;/scan&quot;>back to Report Studio</a>">SafetyNet · dự án khoa học · agent vendor từ
+      <a href="https://github.com/greydgl/pentestgpt" target="_blank" rel="noopener">PentestGPT</a> (MIT) ·
+      <a href="/scan">quay lại Report Studio</a></div>
+  </footer>
+</main>
+
+<script>
+"use strict";
+
+/* ---------- i18n (cùng khoá "sn-lang" với các trang React; xem LangToggle trong shared.jsx) ---------- */
+var LANG = "vi";
+try { var _l = localStorage.getItem("sn-lang"); if (_l === "en" || _l === "vi") LANG = _l; } catch (e) {}
+function tr(vi, en) { return LANG === "en" ? en : vi; }
+document.documentElement.lang = LANG;
+if (LANG === "en") {
+  document.title = "SafetyNet — Method & Contributions";
+  // Static prose: every element carrying data-en has its Vietnamese innerHTML swapped for the English one.
+  Array.prototype.forEach.call(document.querySelectorAll("[data-en]"), function (n) { n.innerHTML = n.getAttribute("data-en"); });
+  [["nav.mainnav", "aria-label", "Main menu"], ["nav.toc", "aria-label", "Page contents"], ["#theme", "title", "Toggle theme"],
+   ["#theme", "aria-label", "Toggle theme"], [".formula", "aria-label", "SafetyNet equals PentestGPT plus a safety layer plus a reporting layer"],
+   [".stats", "aria-label", "Codebase figures"], ["#pipe", "aria-label", "Pipeline steps"], [".cycle", "aria-label", "Loop"],
+   ["#join-tabs", "aria-label", "Choose an observation"], ["#lab-tabs", "aria-label", "Choose a labeler"]
+  ].forEach(function (a) { var n = document.querySelector(a[0]); if (n) n.setAttribute(a[1], a[2]); });
+}
+(function () {
+  var b = document.getElementById("lang"), next = LANG === "vi" ? "en" : "vi";
+  var tip = LANG === "vi" ? "Switch to English" : "Chuyển sang tiếng Việt";
+  b.textContent = next.toUpperCase(); b.title = tip; b.setAttribute("aria-label", tip);
+  b.addEventListener("click", function () { try { localStorage.setItem("sn-lang", next); } catch (e) {} location.reload(); });
+})();
+
+/* ---------- theme (cùng khoá với trang chính) ---------- */
+(function () {
+  var btn = document.getElementById("theme");
+  function isDark() {
+    var t = document.documentElement.getAttribute("data-theme");
+    return t ? t === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+  }
+  function paint() { btn.textContent = isDark() ? "☾" : "☀"; }
+  btn.addEventListener("click", function () {
+    var next = isDark() ? "light" : "dark";
+    document.documentElement.setAttribute("data-theme", next);
+    try { localStorage.setItem("sn-theme", next); } catch (e) {}
+    paint();
+  });
+  paint();
+})();
+
+/* ---------- helpers ---------- */
+function el(tag, attrs, children) {
+  var n = document.createElement(tag);
+  Object.keys(attrs || {}).forEach(function (k) {
+    if (k === "class") n.className = attrs[k];
+    else if (k === "text") n.textContent = attrs[k];
+    else n.setAttribute(k, attrs[k]);
+  });
+  (children || []).forEach(function (c) { n.appendChild(typeof c === "string" ? document.createTextNode(c) : c); });
+  return n;
+}
+
+/* ---------- 03 · pipeline ---------- */
+var STEPS = [
+  { t: "Nhập", w: "web/scan.html",
+    h: "Người dùng chọn target và loại scan",
+    p: ["Form chỉ có hai trường: URL và một dropdown loại scan. Không có ô nhập scope hay prompt tự do.",
+        "Gửi POST /api/scan rồi poll GET /api/scan/{job_id} mỗi 2,5 giây."],
+    files: [["web/scan.html", "App → startScan()"], ["api.py", "POST /api/scan, GET /api/scan/{id}"]] },
+  { t: "Cổng", w: "config.py · audit.py", safe: true,
+    h: "Hai luật cứng chạy trước mọi thứ",
+    p: ["validate_target chỉ cho http/https tới localhost, 127.0.0.0/8 hoặc ::1. goal_for ánh xạ loại scan sang goal viết sẵn. Sai một trong hai → HTTP 400, chưa có gì được spawn.",
+        "Sau đó ghi audit.log sự kiện scan_requested rồi mới tạo job."],
+    files: [["config.py", "validate_target · goal_for · validate_run_id"], ["audit.py", "record_scan → runs/audit.log (JSONL)"], ["api.py:154", "start_scan"]] },
+  { t: "Engine", w: "engines/",
+    h: "Chọn cách chạy: Docker, trực tiếp, hoặc replay",
+    p: ["Cả ba engine tuân theo cùng một Protocol, trả về RunResult(summary, traces_dir).",
+        "LiveAgentEngine (mode docker, mặc định) copy credentials tạm, đổi 127.0.0.1 thành host.docker.internal, chạy docker run rồi xoá credentials. LocalAgentEngine (mode direct) chạy thẳng CLI agent trên máy, không có container — chỉ bật được khi server đặt SAFETYNET_ALLOW_DIRECT=1. ReplayEngine chỉ đọc run đã lưu."],
+    files: [["engines/base.py", "RunResult · Engine · load_run_result"], ["engines/live.py", "build_command · _prepare_creds · run"], ["engines/local.py", "LocalAgentEngine · kill cả cây tiến trình khi timeout"], ["engines/replay.py", "list_runs · load"]] },
+  { t: "Agent", w: "Docker container",
+    h: "Supervisor ↔ Executor quét trong container",
+    p: ["Vòng lặp tất định, mỗi lần một task. Tối đa 20 quyết định (--max-decisions) và 600 giây.",
+        "Kết thúc luôn ghi summary.json, kể cả khi lỗi — nên host luôn có thứ để đọc."],
+    files: [["agent_image/Dockerfile", "python:3.12-slim + Claude Code CLI, user uid 1000"], ["pentestgpt_agent/loop.py", "PentestLoop"], ["pentestgpt_agent/trial.py", "run_trial · summary.json"]] },
+  { t: "Adapter", w: "adapter.py", fact: true,
+    h: "FACT: nối summary với trace",
+    p: ["Với mỗi observation, tìm sự kiện tool_result theo evidence_sequences trong events.jsonl, lấy call_id, rồi tìm tool_call tương ứng — đó là request.",
+        "Không LLM, không đoán. Kết quả là list[Finding] chỉ chứa dữ kiện."],
+    files: [["adapter.py:64", "adapt()"], ["adapter.py:35", "_recover_request()"], ["models.py", "Finding"]] },
+  { t: "Gán nhãn", w: "labeling*.py · owasp.py", nar: true,
+    h: "NARRATIVE: diễn giải có kiểm soát",
+    p: ["Có ANTHROPIC_API_KEY → LLMLabeler; không thì HeuristicLabeler. Lỗi của LLM bất kỳ đều rơi về heuristic, không làm hỏng báo cáo.",
+        "Evidence bị đóng khung trong <EVIDENCE>…</EVIDENCE> và system prompt coi nó là dữ liệu. OWASP luôn tra bảng tĩnh."],
+    files: [["labeling.py", "HeuristicLabeler · label_findings"], ["labeling_llm.py", "LLMLabeler"], ["owasp.py", "CWE_TO_OWASP (22 CWE)"]] },
+  { t: "Báo cáo", w: "pipeline.py · report.py",
+    h: "Sắp theo severity, nói thật về run lỗi",
+    p: ["build_report sắp finding từ nặng đến nhẹ. Report.conclusive chỉ đúng khi run hoàn tất; UI và Markdown hiện cảnh báo nếu không.",
+        "Xuất Markdown (cắt response ở 1.200 ký tự) hoặc In → PDF bằng trình duyệt."],
+    files: [["pipeline.py", "build_report"], ["report.py", "to_markdown"], ["models.py", "Report.conclusive"]] }
+];
+
+if (LANG === "en") {
+  var STEPS_EN = [
+    { t: "Input", h: "The user picks a target and a scan type",
+      p: ["The form has only two fields: a URL and a scan-type dropdown. There is no scope box or free-form prompt.",
+          "It sends POST /api/scan, then polls GET /api/scan/{job_id} every 2.5 seconds."] },
+    { t: "Gate", h: "Two hard rules run before anything else",
+      p: ["validate_target only allows http/https to localhost, 127.0.0.0/8 or ::1. goal_for maps the scan type to a pre-written goal. If either fails → HTTP 400 and nothing has been spawned.",
+          "Then the scan_requested event is written to audit.log, and only then is the job created."] },
+    { t: "Engine", h: "Pick how to run: Docker, direct, or replay",
+      p: ["All three engines follow the same Protocol and return RunResult(summary, traces_dir).",
+          "LiveAgentEngine (docker mode, the default) copies temporary credentials, rewrites 127.0.0.1 to host.docker.internal, runs docker run, then deletes the credentials. LocalAgentEngine (direct mode) runs the agent CLI straight on the machine with no container — it can only be enabled when the server sets SAFETYNET_ALLOW_DIRECT=1. ReplayEngine just reads a saved run."],
+      files: [["engines/base.py", "RunResult · Engine · load_run_result"], ["engines/live.py", "build_command · _prepare_creds · run"], ["engines/local.py", "LocalAgentEngine · kills the whole process tree on timeout"], ["engines/replay.py", "list_runs · load"]] },
+    { t: "Agent", h: "Supervisor ↔ Executor scan inside the container",
+      p: ["A deterministic loop, one task at a time. At most 20 decisions (--max-decisions) and 600 seconds.",
+          "It always writes summary.json at the end, even on failure — so the host always has something to read."] },
+    { t: "Adapter", h: "FACT: join summary with trace",
+      p: ["For each observation, find the tool_result event by evidence_sequences in events.jsonl, take its call_id, then find the matching tool_call — that is the request.",
+          "No LLM, no guessing. The result is a list[Finding] holding facts only."] },
+    { t: "Labeling", h: "NARRATIVE: controlled interpretation",
+      p: ["With ANTHROPIC_API_KEY → LLMLabeler; otherwise HeuristicLabeler. Any LLM error falls back to the heuristic and never breaks the report.",
+          "Evidence is framed in <EVIDENCE>…</EVIDENCE> and the system prompt treats it as data. OWASP is always looked up in the static table."] },
+    { t: "Report", h: "Sorted by severity, honest about failed runs",
+      p: ["build_report sorts findings from worst to least. Report.conclusive is true only when the run completed; the UI and Markdown show a warning otherwise.",
+          "Exports Markdown (response cut at 1,200 characters) or Print → PDF via the browser."] }
+  ];
+  STEPS_EN.forEach(function (e, i) { Object.keys(e).forEach(function (k) { STEPS[i][k] = e[k]; }); });
+}
+
+(function () {
+  var host = document.getElementById("pipe"), detail = document.getElementById("pdetail");
+  var btns = [];
+  function show(i) {
+    var s = STEPS[i];
+    btns.forEach(function (b, j) { b.setAttribute("aria-selected", j === i ? "true" : "false"); b.tabIndex = j === i ? 0 : -1; });
+    detail.replaceChildren(
+      el("div", {}, [el("h3", { text: s.h })].concat(s.p.map(function (x) { return el("p", { text: x }); }))),
+      el("div", { class: "files" }, [el("h4", { text: tr("Nằm ở đâu", "Where it lives") })].concat(
+        s.files.map(function (f) { return el("div", { class: "fileref" }, [f[0], el("small", { text: f[1] })]); })))
+    );
+  }
+  STEPS.forEach(function (s, i) {
+    var b = el("button", { class: "pstep" + (s.safe ? " danger" : ""), role: "tab", type: "button" }, [
+      el("span", { class: "n", text: String(i + 1).padStart(2, "0") }),
+      el("span", { class: "t", text: s.t }),
+      el("span", { class: "w", text: s.w })
+    ]);
+    b.addEventListener("click", function () { show(i); });
+    b.addEventListener("keydown", function (e) {
+      var d = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
+      if (!d) return;
+      var j = (i + d + STEPS.length) % STEPS.length; show(j); btns[j].focus(); e.preventDefault();
+    });
+    btns.push(b); host.appendChild(b);
+  });
+  show(1);
+})();
+
+/* ---------- 05 · gate playground (mô phỏng config.py) ---------- */
+var SCAN_TYPES = {
+  sqli:    { label: "SQL Injection", goal: "Tim SQL injection tren web app duoc phep kiem thu." },
+  xss:     { label: "Cross-Site Scripting (XSS)", goal: "Tim cac lo hong Cross-Site Scripting tren web app duoc phep kiem thu." },
+  auth:    { label: "Broken Authentication / Access Control", goal: "Tim cac lo hong xac thuc va kiem soat truy cap tren web app duoc phep kiem thu." },
+  general: { label: "General vulnerability assessment", goal: "Danh gia web app duoc phep kiem thu de tim cac lo hong khai thac duoc." }
+};
+
+// Mô phỏng urlsplit(url).hostname + ipaddress.is_loopback; cố ý KHÔNG dùng new URL()
+// vì trình duyệt chuẩn hoá "127.1" thành "127.0.0.1" còn Python thì từ chối.
+function checkTarget(raw) {
+  var out = [], url = raw.trim();
+  var m = /^([a-z][a-z0-9+.-]*):\/\/([^\/?#]*)/i.exec(url);
+  var scheme = m ? m[1].toLowerCase() : "";
+  var okScheme = scheme === "http" || scheme === "https";
+  out.push([okScheme, okScheme ? tr("Scheme là ", "Scheme is ") + scheme + " (http/https)" : tr("Scheme phải là http/https", "Scheme must be http/https") + (scheme ? tr(", nhận được “", ", got “") + scheme + "”" : "")]);
+  if (!okScheme) return { ok: false, checks: out };
+
+  var auth = m[2], host = auth.slice(auth.lastIndexOf("@") + 1);       // bỏ userinfo
+  if (host.charAt(0) === "[") { var e = host.indexOf("]"); host = e > 0 ? host.slice(1, e) : host; }
+  else host = host.replace(/:\d*$/, "");                                 // bỏ port
+  host = host.toLowerCase();
+  var hasHost = host.length > 0;
+  out.push([hasHost, hasHost ? tr("Có host: ", "Host: ") + host : tr("Target không có host", "Target has no host")]);
+  if (!hasHost) return { ok: false, checks: out };
+
+  var loop = false, why = "";
+  if (host === "localhost") { loop = true; why = tr("tên localhost", "the name localhost"); }
+  else if (/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.test(host)) {
+    var p = host.split(".");
+    var valid = p.every(function (x) { return +x <= 255 && (x === "0" || x.charAt(0) !== "0"); });
+    loop = valid && +p[0] === 127; why = loop ? tr("IPv4 thuộc 127.0.0.0/8", "IPv4 inside 127.0.0.0/8") : (valid ? tr("IPv4 không phải loopback", "IPv4 is not loopback") : tr("IPv4 không hợp lệ", "invalid IPv4"));
+  } else if (host === "::1") { loop = true; why = "IPv6 loopback ::1"; }
+  else why = tr("host không phải localhost / loopback", "host is not localhost / loopback");
+  out.push([loop, loop ? "Loopback ✓ (" + why + ")" : tr("Không phải loopback — ", "Not loopback — ") + why]);
+  return { ok: loop, checks: out, host: host };
+}
+
+(function () {
+  var input = document.getElementById("gate-url"), verdict = document.getElementById("gate-verdict"),
+      presets = document.getElementById("gate-presets");
+  ["http://127.0.0.1:3000", "http://localhost:8080", "http://[::1]:3000", "https://example.com",
+   "http://192.168.1.10", "ftp://127.0.0.1", "http://localhost.evil.com", "http://127.0.0.1@evil.com", "http://127.1"
+  ].forEach(function (u) {
+    var b = el("button", { class: "chipbtn", type: "button", text: u });
+    b.addEventListener("click", function () { input.value = u; run(); });
+    presets.appendChild(b);
+  });
+  function run() {
+    var r = checkTarget(input.value);
+    var ul = el("ul", { class: "checks" }, r.checks.map(function (c) { return el("li", { class: c[0] ? "pass" : "fail", text: c[1] }); }));
+    verdict.className = "verdict " + (r.ok ? "ok" : "no");
+    verdict.replaceChildren(
+      el("b", { text: r.ok ? tr("✓ Cho phép — được chuyển tiếp sang engine", "✓ Allowed — forwarded to the engine") : tr("✕ Từ chối — HTTP 400, chưa spawn gì cả", "✕ Rejected — HTTP 400, nothing spawned") }), ul);
+  }
+  input.addEventListener("input", run); run();
+
+  var sel = document.getElementById("scan-type"), goal = document.getElementById("goal-out");
+  Object.keys(SCAN_TYPES).forEach(function (k) { sel.appendChild(el("option", { value: k, text: SCAN_TYPES[k].label })); });
+  function g() { goal.textContent = SCAN_TYPES[sel.value].goal; }
+  sel.addEventListener("change", g); g();
+})();
+
+/* ---------- 05 · bất biến ---------- */
+var INVARIANTS = [
+  { n: "1", t: "Whitelist loopback", d: "Chỉ localhost / 127.0.0.0/8 / ::1. Từ chối trước khi spawn.",
+    at: "config.validate_target ← api.py:158", test: "test_local_targets_allowed · test_remote_targets_blocked", cov: "ok", covT: "ĐÃ TEST" },
+  { n: "2", t: "Scope cố định", d: "Loại scan → goal template trong code, không có văn bản tự do.",
+    at: "config.SCAN_TYPES / goal_for ← api.py:162", test: "test_goal_templates_are_fixed", cov: "ok", covT: "ĐÃ TEST" },
+  { n: "3", t: "Cô lập agent", d: "Mặc định agent FULL_ACCESS chỉ chạy trong container. Chế độ direct bỏ ranh giới này nên phải bật chủ động ở server (SAFETYNET_ALLOW_DIRECT=1).",
+    at: "engines/live.py + Dockerfile · config.validate_mode", test: "hình dạng lệnh docker run · test_direct_mode.py (cổng chế độ)", cov: "part", covT: "MỘT PHẦN" },
+  { n: "4", t: "LLM không khẳng định vô căn cứ", d: "Evidence đóng khung, system prompt coi là dữ liệu, OWASP tra bảng tĩnh.",
+    at: "labeling_llm._SYSTEM · owasp.py", test: "chưa có", cov: "none", covT: "CHƯA TEST" },
+  { n: "5", t: "Ghi log mọi scan", d: "scan_requested ghi trước khi chạy; log lỗi không được làm hỏng scan.",
+    at: "audit.record_scan ← api.py", test: "test_record_scan_appends_jsonl", cov: "ok", covT: "ĐÃ TEST" },
+  { n: "+", t: "Chống path traversal", d: "run_id dùng để dựng đường dẫn nên phải là một đoạn đường dẫn an toàn.",
+    at: "config.validate_run_id ← api._engine_for", test: "test_traversal_run_ids_blocked", cov: "ok", covT: "ĐÃ TEST" }
+];
+if (LANG === "en") {
+  var INV_EN = [
+    { t: "Loopback whitelist", d: "Only localhost / 127.0.0.0/8 / ::1. Rejected before anything is spawned.", covT: "TESTED" },
+    { t: "Fixed scope", d: "Scan type → goal template in code, no free-form text.", covT: "TESTED" },
+    { t: "Agent isolation", d: "By default the FULL_ACCESS agent only runs inside a container. Direct mode removes this boundary, so it must be enabled deliberately on the server (SAFETYNET_ALLOW_DIRECT=1).",
+      test: "shape of the docker run command · test_direct_mode.py (mode gate)", covT: "PARTIAL" },
+    { t: "The LLM may not assert without grounds", d: "Evidence is framed, the system prompt treats it as data, OWASP comes from a static table.", test: "none yet", covT: "UNTESTED" },
+    { t: "Log every scan", d: "scan_requested is written before anything runs; a logging failure must not break the scan.", covT: "TESTED" },
+    { t: "Path-traversal guard", d: "run_id is used to build paths, so it must be a safe single path segment.", covT: "TESTED" }
+  ];
+  INV_EN.forEach(function (e, i) { Object.keys(e).forEach(function (k) { INVARIANTS[i][k] = e[k]; }); });
+}
+(function () {
+  var host = document.getElementById("inv");
+  INVARIANTS.forEach(function (x) {
+    host.appendChild(el("div", { class: "invcard" }, [
+      el("h3", {}, [el("span", { class: "no", text: "#" + x.n }), x.t]),
+      el("p", { text: x.d }),
+      el("dl", { class: "where" }, [el("dt", { text: tr("Chạy ở", "Enforced at") }), el("dd", { text: x.at }), el("dt", { text: "Test" }), el("dd", { text: x.test })]),
+      el("span", { class: "cov " + x.cov, text: x.covT })
+    ]));
+  });
+})();
+
+/* ---------- 06 · join demo (dữ liệu thật từ samples/runs/sqli-claude-03) ---------- */
+var JOINS = [
+  { key: "baseline", label: "Baseline (đăng nhập sai)",
+    ep: "executor-37ca…bf959b90cb041", seqs: [14], resultSeq: 14, callSeq: 12,
+    events: [
+      [11, "reasoning", "…"],
+      [12, "tool_call", "call_id=toolu_01Fq…"],
+      [14, "tool_result", "call_id=toolu_01Fq…"],
+      [26, "tool_call", "call_id=toolu_019s…"]
+    ],
+    request: "timeout -k 5 20 curl -s -S --max-time 15 -i -X POST \\\n  http://127.0.0.1:3000/rest/user/login \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\"email\":\"test@test.com\",\"password\":\"x\"}'",
+    response: "HTTP/1.1 401 Unauthorized\n…\nInvalid email or password.",
+    task: "test", status: "401" },
+  { key: "sqli", label: "SQL injection (vượt đăng nhập)",
+    ep: "executor-75a7…da1f74b8d8c987b4fc858a93f", seqs: [7], resultSeq: 7, callSeq: 5,
+    events: [
+      [5, "tool_call", "call_id=toolu_0159…"],
+      [6, "tool_call", "call_id=toolu_018e…"],
+      [7, "tool_result", "call_id=toolu_0159…"],
+      [8, "tool_call", "call_id=toolu_01ER…"]
+    ],
+    request: "timeout -k 5 20 curl -s -m 15 -i -X POST \\\n  http://127.0.0.1:3000/rest/user/login \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\"email\":\"'\"'\"' OR 1=1--\",\"password\":\"x\"}'",
+    response: "HTTP/1.1 200 OK\n…\n{\"authentication\":{\"token\":\"eyJ0eXAiOiJKV1Qi…\"",
+    task: "test", status: "200" }
+];
+
+if (LANG === "en") {
+  JOINS[0].label = "Baseline (wrong login)";
+  JOINS[1].label = "SQL injection (login bypass)";
+}
+(function () {
+  var tabs = document.getElementById("join-tabs"), host = document.getElementById("join"),
+      msg = document.getElementById("join-msg"), next = document.getElementById("join-next"),
+      reset = document.getElementById("join-reset");
+  var cur = 0, step = 0;
+  var MSGS = [
+    "Bấm “Chạy từng bước”. Bên trái là thứ summary.json có: chỉ có response và số thứ tự bằng chứng.",
+    "Bước 1 — observation cho biết nó nằm ở trace_episode_id nào và evidence_sequences = [{seq}].",
+    "Bước 2 — mở events.jsonl của episode đó, đi tới sự kiện số {seq}: một tool_result mang call_id.",
+    "Bước 3 — tìm tool_call có cùng call_id (sự kiện {call}), không phải sự kiện liền kề. Trường input.command chính là request.",
+    "Hoàn tất — Finding đủ cặp request → response. Chưa có nhãn nào; việc đó thuộc tầng NARRATIVE."
+  ];
+  if (LANG === "en") MSGS = [
+    "Press “Run step by step”. On the left is what summary.json has: only the response and the evidence sequence numbers.",
+    "Step 1 — the observation tells us which trace_episode_id it lives in and that evidence_sequences = [{seq}].",
+    "Step 2 — open that episode’s events.jsonl and go to event {seq}: a tool_result carrying a call_id.",
+    "Step 3 — find the tool_call with the same call_id (event {call}), not the adjacent event. Its input.command field is the request.",
+    "Done — the Finding now has the full request → response pair. No label yet; that belongs to the NARRATIVE layer."
+  ];
+  function build() {
+    var j = JOINS[cur];
+    host.replaceChildren();
+    // cột 1: summary.json
+    var c1 = el("div", { class: "jcol" }, [
+      el("h4", {}, ["summary.json ", el("span", { text: "observations[ ]" })]),
+      el("div", { class: "body" }, [
+        el("div", { class: "ev", id: "j-obs" }, [el("b", { text: "trace_episode_id" }), j.ep]),
+        el("div", { class: "ev", id: "j-seq" }, [el("b", { text: "evidence_sequences" }), "[" + j.seqs.join(", ") + "]"]),
+        el("pre", { id: "j-resp-src", text: j.response }),
+        el("div", { class: "hint", text: tr("Chỉ có response. Request đâu?", "Only the response. Where is the request?") })
+      ])]);
+    // cột 2: events.jsonl
+    var evs = j.events.map(function (e) {
+      return el("div", { class: "ev", "data-seq": String(e[0]) }, [el("b", { text: "#" + e[0] }), e[1] + (e[2] !== "…" ? " · " + e[2] : "")]);
+    });
+    var c2 = el("div", { class: "jcol" }, [
+      el("h4", {}, ["traces/", el("span", { text: j.ep.split("…")[0] + "…/events.jsonl" })]),
+      el("div", { class: "body" }, evs)]);
+    // cột 3: Finding
+    var c3 = el("div", { class: "jcol" }, [
+      el("h4", {}, ["Finding ", el("span", { class: "flag fact", text: "FACT" })]),
+      el("div", { class: "body" }, [
+        el("div", { class: "ev" }, [el("b", { text: "task_kind" }), j.task]),
+        el("div", { class: "hint", style: "margin:2px 0 4px", text: "request" }),
+        el("pre", { id: "j-req", class: "hole", text: tr("— chưa khôi phục —", "— not recovered yet —") }),
+        el("div", { class: "hint", style: "margin:2px 0 4px", text: "response" }),
+        el("pre", { id: "j-resp", class: "hole", text: tr("— chưa có —", "— nothing yet —") })
+      ])]);
+    [c1, c2, c3].forEach(function (c) { host.appendChild(c); });
+    paint();
+  }
+  function paint() {
+    var j = JOINS[cur], $ = function (id) { return document.getElementById(id); };
+    $("j-obs").classList.toggle("on", step === 1);
+    $("j-seq").classList.toggle("on", step === 1);
+    Array.prototype.forEach.call(host.querySelectorAll("[data-seq]"), function (n) {
+      var s = +n.getAttribute("data-seq");
+      n.classList.toggle("on", (step === 2 && s === j.resultSeq) || (step === 3 && s === j.callSeq));
+      n.classList.toggle("dim", step >= 2 && s !== j.resultSeq && s !== j.callSeq);
+    });
+    var req = $("j-req"), resp = $("j-resp");
+    req.textContent = step >= 3 ? j.request : tr("— chưa khôi phục —", "— not recovered yet —"); req.className = step >= 3 ? "on" : "hole";
+    resp.textContent = step >= 4 ? j.response : tr("— chưa có —", "— nothing yet —"); resp.className = step >= 4 ? "on" : "hole";
+    msg.textContent = MSGS[step].replace("{seq}", j.resultSeq).replace("{call}", "#" + j.callSeq);
+    next.textContent = step >= 4 ? tr("✓ Xong", "✓ Done") : "▶ " + (step === 0 ? tr("Chạy từng bước", "Run step by step") : tr("Bước tiếp", "Next step"));
+    next.disabled = step >= 4;
+  }
+  JOINS.forEach(function (j, i) {
+    var b = el("button", { type: "button", role: "tab", text: j.label, "aria-selected": i === 0 ? "true" : "false" });
+    b.addEventListener("click", function () {
+      cur = i; step = 0;
+      Array.prototype.forEach.call(tabs.children, function (t, k) { t.setAttribute("aria-selected", k === i ? "true" : "false"); });
+      build();
+    });
+    tabs.appendChild(b);
+  });
+  next.addEventListener("click", function () { if (step < 4) { step++; paint(); } });
+  reset.addEventListener("click", function () { step = 0; paint(); });
+  build();
+})();
+
+/* ---------- 06 · labeler demo ---------- */
+var OWASP = { "CWE-89": "A03:2021 - Injection" };
+var LABELS = [
+  { key: "base", tab: "401 · baseline", req: "curl … -d '{\"email\":\"test@test.com\",\"password\":\"x\"}'", resp: "HTTP/1.1 401 Unauthorized …",
+    rule: "status ∈ {401, 403} → baseline, không phải lỗ hổng",
+    out: { vuln: "Baseline / expected rejection", sev: "info", cwe: null, conf: "high" } },
+  { key: "sqli", tab: "200 · SQLi", req: "curl … -d '{\"email\":\"' OR 1=1--\",\"password\":\"x\"}'", resp: "HTTP/1.1 200 OK … {\"authentication\":{\"token\":…",
+    rule: "request khớp payload SQL + status 200 + response có “authentication/token” → vượt đăng nhập",
+    out: { vuln: "SQL Injection (authentication bypass)", sev: "critical", cwe: "CWE-89", conf: "high" } }
+];
+if (LANG === "en") {
+  LABELS[0].rule = "status ∈ {401, 403} → baseline, not a vulnerability";
+  LABELS[1].rule = "request matches a SQL payload + status 200 + response contains “authentication/token” → login bypass";
+}
+(function () {
+  var tabs = document.getElementById("lab-tabs"), out = document.getElementById("lab-out"), cur = 0;
+  var SEVCOL = { critical: "crit", high: "high", medium: "med", low: "low", info: "info" };
+  function paint() {
+    var L = LABELS[cur], o = L.out;
+    var col = "var(--" + SEVCOL[o.sev] + ")", bg = "var(--" + SEVCOL[o.sev] + "-bg)";
+    out.replaceChildren(
+      el("div", { class: "hint", style: "margin:0 0 6px", text: tr("FACT vào", "FACT in") }),
+      el("pre", { style: "border:1px solid var(--line);border-radius:8px;background:var(--surface-2);max-height:none", text: "REQUEST  " + L.req + "\nRESPONSE " + L.resp }),
+      el("div", { class: "hint", style: "margin:14px 0 6px", text: tr("HeuristicLabeler áp luật: ", "HeuristicLabeler applies the rule: ") + L.rule }),
+      el("div", { class: "lab-out" }, [
+        el("div", {}, [el("b", { text: tr("Loại", "Type") }), o.vuln]),
+        el("div", {}, [el("b", { text: "Severity" }), el("span", { class: "badge", style: "background:" + bg + ";color:" + col, text: o.sev.toUpperCase() })]),
+        el("div", {}, [el("b", { text: tr("CWE (do nhãn)", "CWE (from label)") }), o.cwe || "—"]),
+        el("div", {}, [el("b", { text: tr("OWASP (bảng tĩnh)", "OWASP (static table)") }), o.cwe ? OWASP[o.cwe] : "—"]),
+        el("div", {}, [el("b", { text: "Confidence" }), o.conf])
+      ])
+    );
+  }
+  LABELS.forEach(function (l, i) {
+    var b = el("button", { type: "button", role: "tab", text: l.tab, "aria-selected": i === 0 ? "true" : "false" });
+    b.addEventListener("click", function () {
+      cur = i;
+      Array.prototype.forEach.call(tabs.children, function (t, k) { t.setAttribute("aria-selected", k === i ? "true" : "false"); });
+      paint();
+    });
+    tabs.appendChild(b);
+  });
+  paint();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SafetyNet — Quét mới</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;750&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<script src="/static/theme-init.js"></script>
+<link rel="stylesheet" href="/static/styles.css" />
+<script defer src="/static/codefall.js"></script>
+<script crossorigin src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone@7.25.6/babel.min.js"></script>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel" src="/static/shared.jsx"></script>
+<script type="text/babel">
+/* ---------- app ---------- */
+document.title = tr("SafetyNet — Quét mới", "SafetyNet — New scan");
+function App() {
+  const [types, setTypes] = useState([]);
+  const [runs, setRuns] = useState([]);
+  // "Quét lại" links from the other pages arrive as /scan?target=…&type=…&project=… (server still validates all).
+  const qs = new URLSearchParams(location.search);
+  const [target, setTarget] = useState(qs.get("target") || "http://127.0.0.1:3000");
+  const [scanType, setScanType] = useState(qs.get("type") || "general");
+  const [project, setProject] = useState(qs.get("project") || "");
+  const [pastScans, setPastScans] = useState([]);  // for project suggestions
+  const [modes, setModes] = useState([]);
+  const [mode, setMode] = useState("docker");
+  const [model, setModel] = useState("");
+  const [timeoutS, setTimeoutS] = useState("600");
+  const [view, setView] = useState(null);   // {src, report, meta} shown in the right column
+  const [activeRun, setActiveRun] = useState(null);
+  const [status, setStatus] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [jobId, setJobId] = useState(null); // drives the live terminal while a scan runs
+  const [cancelling, setCancelling] = useState(false);
+
+  useEffect(() => {
+    api("/api/scan-types").then(setTypes).catch(() => {});
+    api("/api/modes").then(setModes).catch(() => {});
+    api("/api/runs").then(setRuns).catch(() => {});
+    api("/api/history").then(setPastScans).catch(() => {});
+  }, []);
+
+  const projects = [...new Set(pastScans.map(h => h.project).filter(Boolean))];
+  // Leaving the target field with no project typed: reuse the project last scanned on that URL.
+  function suggestProject() {
+    if (project.trim()) return;
+    const prev = pastScans.find(h => h.project && h.target === target.trim());
+    if (prev) setProject(prev.project);
+  }
+
+  const typeLabel = key => (types.find(t => t.key === key) || {}).label || key || "—";
+
+  async function viewSample(run_id) {
+    setStatus(""); setActiveRun(run_id);
+    try { setView({src: "sample", report: await api(`/api/report/sample/${run_id}`), meta: null}); }
+    catch (e) { setStatus(tr("Lỗi: ", "Error: ") + e.message); }
+  }
+
+  async function openRun(run_id) {
+    setStatus(""); setActiveRun(run_id);
+    try {
+      const {meta, report} = await api(`/api/history/${run_id}`);
+      setView({src: "live", report, meta});
+    } catch (e) { setStatus(tr("Lỗi: ", "Error: ") + e.message); }
+  }
+
+  async function startScan() {
+    setBusy(true); setStatus(""); setView(null); setActiveRun(null); setJobId(null); setCancelling(false);
+    try {
+      const {job_id, run_id} = await api("/api/scan", {
+        method: "POST", headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({
+          target, scan_type: scanType, mode, model: model.trim() || null, project: project.trim() || null,
+          timeout_s: timeoutS.trim() ? Number(timeoutS) : null,
+        }),
+      });
+      setJobId(job_id);
+      const poll = async () => {
+        const j = await api(`/api/scan/${job_id}`);
+        if (j.status === "done" || j.status === "error" || j.status === "cancelled") {
+          setBusy(false); setCancelling(false);
+          await openRun(run_id);   // same view as reopening it later from the history page
+          setStatus(j.status === "error" ? tr("Scan lỗi: ", "Scan error: ") + be(j.error)
+            : j.status === "cancelled" ? tr("Đã hủy quét.", "Scan cancelled.") : "");
+        } else setTimeout(poll, 2500);
+      };
+      poll();
+    } catch (e) { setStatus(tr("Lỗi: ", "Error: ") + e.message); setBusy(false); }
+  }
+
+  async function cancelScan() {
+    if (!jobId || cancelling) return;
+    setCancelling(true); setStatus(tr("Đang hủy quét…", "Cancelling scan…"));
+    try { await api(`/api/scan/${jobId}/cancel`, {method: "POST"}); }
+    catch (e) { setStatus(tr("Lỗi khi hủy: ", "Failed to cancel: ") + e.message); setCancelling(false); }
+    // on success the next status poll (above) picks up "cancelled" and stops busy.
+  }
+
+  const isErr = /lỗi|Lỗi|error|Error|Failed/.test(status);
+
+  return <div>
+    <AppBar active="scan" />
+
+    <div className="wrap">
+      <div className="hero">
+        <h1>{tr("Quét mới", "New scan")}</h1>
+        <p>{tr(<>Nhập URL web <b>local</b> được phép kiểm thử → agent quét trong môi trường cô lập →
+          báo cáo lỗ hổng truy vết được tới bằng chứng. AI chỉ tổng hợp &amp; giải thích,
+          không tự quyết định tấn công.</>,
+          <>Enter the URL of a <b>local</b> web app you are allowed to test → the agent scans it in an isolated
+          environment → you get a vulnerability report traceable to its evidence. The AI only summarizes &amp;
+          explains; it never decides to attack on its own.</>)}</p>
+      </div>
+
+      <div className="grid">
+        {/* left column: controls */}
+        <div>
+          <div className="card">
+            <div className="card-h"><p className="card-title">{tr("Quét live", "Live scan")}</p></div>
+            <div className="card-b">
+              <div className="field">
+                <label className="label">{tr("Tên dự án", "Project name")}</label>
+                <input list="past-projects" value={project} onChange={e => setProject(e.target.value)}
+                  maxLength={60} placeholder={tr("vd: Shop backend (tuỳ chọn)", "e.g. Shop backend (optional)")} />
+                <datalist id="past-projects">{projects.map(p => <option key={p} value={p} />)}</datalist>
+              </div>
+              <div className="field">
+                <label className="label">{tr("Target URL (local)", "Target URL (local)")}</label>
+                <input value={target} onChange={e => setTarget(e.target.value)} onBlur={suggestProject}
+                  placeholder="http://127.0.0.1:3000" />
+              </div>
+              <div className="field">
+                <label className="label">{tr("Loại scan", "Scan type")}</label>
+                <select value={scanType} onChange={e => setScanType(e.target.value)}>
+                  {types.map(t => <option key={t.key} value={t.key}>{t.label}</option>)}
+                </select>
+              </div>
+              {modes.length > 0 && <div className="field">
+                <label className="label">{tr("Chế độ chạy", "Run mode")}</label>
+                <select value={mode} onChange={e => setMode(e.target.value)}>
+                  {modes.map(m => <option key={m.key} value={m.key} disabled={!m.available}>
+                    {be(m.label)}{m.available ? "" : tr(" — không khả dụng", " — unavailable")}</option>)}
+                </select>
+                {(modes.find(m => m.key === mode) || {}).key === "direct" &&
+                  <div className="warnbox" style={{marginTop: 8, marginBottom: 0}}>
+                    <span>⚠️</span>
+                    <div>{tr(<><b>Không có container.</b> Agent chạy toàn quyền ngay trên máy bạn và đọc nội dung
+                      web không tin cậy. Chỉ dùng với target dev của chính bạn.</>,
+                      <><b>No container.</b> The agent runs with full access directly on your machine and reads
+                      untrusted web content. Use it only against your own dev targets.</>)}</div>
+                  </div>}
+                {modes.filter(m => !m.available).map(m =>
+                  <div key={m.key} className="hint">{be(m.label)}: {be(m.reason)}</div>)}
+              </div>}
+              <div className="field">
+                <label className="label">{tr("Model của agent (tuỳ chọn)", "Agent model (optional)")}</label>
+                <input list="agent-models" value={model} onChange={e => setModel(e.target.value)}
+                  placeholder={tr("mặc định của Claude Code", "Claude Code default")} spellcheck="false" />
+                <datalist id="agent-models">
+                  {["claude-sonnet-5-5", "claude-haiku-5-5", "claude-opus-5-5", "claude-fable-5-1"]
+                    .map(m => <option key={m} value={m} />)}
+                </datalist>
+              </div>
+              <div className="field">
+                <label className="label">{tr("Timeout (giây, 30–3600)", "Timeout (seconds, 30–3600)")}</label>
+                <input type="number" min="30" max="3600" step="30" value={timeoutS}
+                  onChange={e => setTimeoutS(e.target.value)} />
+              </div>
+              <button className="btn" onClick={startScan} disabled={busy}>
+                {busy ? <><span className="spin" /> {tr("Đang quét…", "Scanning…")}</> : tr("⚡ Bắt đầu quét", "⚡ Start scan")}</button>
+              {busy && <button className="btn ghost danger" style={{width: "100%", marginTop: 8}}
+                  onClick={cancelScan} disabled={cancelling}>
+                {cancelling ? tr("Đang hủy…", "Cancelling…") : tr("✕ Hủy quét", "✕ Cancel scan")}</button>}
+              <div className={"hint" + (isErr ? " err" : "")}>
+                {status || (busy
+                  ? tr("Đang quét — xem agent chạy real-time ở khung bên phải.", "Scanning — watch the agent run in real time in the panel on the right.")
+                  : tr("Chỉ chấp nhận localhost / 127.0.0.0/8 / ::1. Cần target đang chạy; chế độ Docker cần thêm Docker Desktop.",
+                       "Only localhost / 127.0.0.0/8 / ::1 are accepted. The target must be running; Docker mode also needs Docker Desktop."))}
+              </div>
+            </div>
+          </div>
+
+          <div className="card">
+            <div className="card-h"><p className="card-title">{tr("Demo — run đã lưu (replay)", "Demo — saved runs (replay)")}</p></div>
+            <div className="card-b">
+              <div className="runs">
+                {runs.map(r => <div key={r.run_id}
+                  className={"run" + (activeRun === r.run_id ? " active" : "")}
+                  onClick={() => viewSample(r.run_id)}>
+                  <span className="rid">{r.run_id}</span>
+                  <span className="rmeta">{r.goal}</span>
+                  <span className="rmeta">{r.status} · {(r.targets || []).join(", ")}</span>
+                </div>)}
+                {runs.length === 0 && <span className="hint">{tr("Chưa có run mẫu nào.", "No sample runs yet.")}</span>}
+              </div>
+              <div className="hint">{tr("Replay không cần Docker, không tốn phí, tất định — dùng cho demo.", "Replay needs no Docker, costs nothing and is deterministic — made for demos.")}</div>
+            </div>
+          </div>
+        </div>
+
+        {/* right column: live terminal while a scan runs, report otherwise */}
+        <div>
+          {busy ? <div className="card">
+              <div className="card-h"><p className="card-title">Agent terminal
+                <span className="term-live"><span className="dot" /> real-time</span></p></div>
+              <div className="card-b"><ScanTerminal jobId={jobId} /></div>
+            </div> :
+            view && view.report ? <Report rep={view.report} src={view.src} meta={view.meta}
+                typeLabel={typeLabel} /> :
+            view && view.meta ? <RunWithoutReport meta={view.meta} typeLabel={typeLabel} /> :
+            <div className="card"><div className="empty">
+              <div className="big">🛡</div>
+              <div><b>{tr("Chưa có báo cáo", "No report yet")}</b></div>
+              <div className="hint">{tr(<>Bắt đầu một lần quét live, hoặc chọn run mẫu. Các lần quét cũ nằm ở trang <a href="/history">Lịch sử</a>.</>,
+                <>Start a live scan or pick a sample run. Earlier scans are on the <a href="/history">History</a> page.</>)}</div>
+            </div></div>}
+        </div>
+      </div>
+
+      <footer>{FOOTER}</footer>
+    </div>
+  </div>;
+}
+
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>
