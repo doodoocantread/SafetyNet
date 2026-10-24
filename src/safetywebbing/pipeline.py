@@ -14,7 +14,7 @@ from .models import Report
 
 
 def default_llm_model() -> str:
-    return os.environ.get("SAFETYNET_LLM_MODEL", "claude-opus-5-5")
+    return os.environ.get("SAFETYWEBBING_LLM_MODEL", "claude-opus-5-5")
 
 
 def default_labeler() -> Labeler:

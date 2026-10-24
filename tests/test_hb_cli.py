@@ -6,10 +6,10 @@ choice + the server's provider key become a litellm model string, including the
 """
 
 import pytest
-from safetynet_hb_agent.cli import _resolve_llm  # made importable by conftest.py
+from safetywebbing_hb_agent.cli import _resolve_llm  # made importable by conftest.py
 
 _KEYS = ("ANTHROPIC_API_KEY", "GEMINI_API_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY",
-         "SAFETYNET_HB_LLM_MODEL", "SAFETYNET_HB_LLM_API_BASE")
+         "SAFETYWEBBING_HB_LLM_MODEL", "SAFETYWEBBING_HB_LLM_API_BASE")
 
 
 @pytest.fixture(autouse=True)
@@ -45,7 +45,7 @@ def test_litellm_format_model_passes_through(monkeypatch):
 
 def test_explicit_env_model_wins(monkeypatch):
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant")
-    monkeypatch.setenv("SAFETYNET_HB_LLM_MODEL", "openrouter/anthropic/claude-3.5-sonnet")
+    monkeypatch.setenv("SAFETYWEBBING_HB_LLM_MODEL", "openrouter/anthropic/claude-3.5-sonnet")
     _, model, _ = _resolve_llm("claude-sonnet-5-5")
     assert model == "openrouter/anthropic/claude-3.5-sonnet"
 

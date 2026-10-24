@@ -1,17 +1,17 @@
-"""Tests for the hackingBuddyGPT → SafetyNet translator (agent_image_hackingbuddy).
+"""Tests for the hackingBuddyGPT → SafetyWebbing translator (agent_image_hackingbuddy).
 
 The translator is pure, so it needs no Docker, hackingBuddy or LLM. We build a
 synthetic hackingBuddy span log, translate it, and then feed the result through
-SafetyNet's own adapter to prove the two agents land on the SAME FACT contract
+SafetyWebbing's own adapter to prove the two agents land on the SAME FACT contract
 (request → response + agent note behind every observation).
 """
 
 import json
 
 import pytest
-from safetynet_hb_agent.translate import translate  # made importable by conftest.py
+from safetywebbing_hb_agent.translate import translate  # made importable by conftest.py
 
-from safetynet.adapter import adapt
+from safetywebbing.adapter import adapt
 
 # hackingBuddy attribute keys (utils/log_storage.py).
 _OP = "gen_ai.operation.name"

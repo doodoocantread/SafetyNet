@@ -1,8 +1,8 @@
-# SafetyNet scan image: the PentestGPT agent (FULL_ACCESS) runs ONLY inside this
+# SafetyWebbing scan image: the PentestGPT agent (FULL_ACCESS) runs ONLY inside this
 # container. The container is the real isolation boundary — see ARCHITECTURE.md §2.3.
 #
 # Build (from repo root):
-#   docker build -t safetynet-agent ./agent_image
+#   docker build -t safetywebbing-agent ./agent_image
 #
 # The agent uses the "claude" backend, which shells out to the Claude Code CLI.
 # Auth is provided at RUN time: LiveAgentEngine mounts an ephemeral copy of the

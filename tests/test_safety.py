@@ -10,15 +10,15 @@ import sys
 
 import pytest
 
-from safetynet.audit import record_scan
-from safetynet.config import (
+from safetywebbing.audit import record_scan
+from safetywebbing.config import (
     InvalidRunId,
     TargetNotAllowed,
     goal_for,
     validate_run_id,
     validate_target,
 )
-from safetynet.engines.live import (
+from safetywebbing.engines.live import (
     LiveAgentEngine,
     ScanFailed,
     container_name,
@@ -120,7 +120,7 @@ def test_record_scan_appends_jsonl(tmp_path):
 def test_prune_jobs_drops_stale_and_caps_size():
     import time
 
-    from safetynet import api
+    from safetywebbing import api
 
     api._jobs.clear()
     now = time.time()
@@ -157,7 +157,7 @@ def test_build_command_mounts_runs_and_translates_target(tmp_path):
         target="http://127.0.0.1:3000", goal="Tim SQL injection", run_id="r1"
     )
     assert cmd[0:2] == ["docker", "run"]
-    assert "safetynet-agent" in cmd
+    assert "safetywebbing-agent" in cmd
     # target handed to the agent is the container-visible host
     i = cmd.index("--target")
     assert cmd[i + 1] == "http://host.docker.internal:3000"
@@ -168,7 +168,7 @@ def test_build_command_mounts_runs_and_translates_target(tmp_path):
     assert cmd[j + 1] == "claude"
     # named so a cancel/timeout can `docker kill` the real container, not just
     # the attached CLI client
-    assert cmd[cmd.index("--name") + 1] == container_name("r1") == "safetynet-r1"
+    assert cmd[cmd.index("--name") + 1] == container_name("r1") == "safetywebbing-r1"
 
 
 def test_build_command_mounts_creds_writable(tmp_path):

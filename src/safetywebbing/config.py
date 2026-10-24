@@ -101,7 +101,7 @@ def goal_for(scan_type: str) -> str:
 # It therefore needs an explicit opt-in set by whoever starts the SERVER — it can
 # never be switched on from the request body or the UI.
 
-DIRECT_MODE_ENV = "SAFETYNET_ALLOW_DIRECT"
+DIRECT_MODE_ENV = "SAFETYWEBBING_ALLOW_DIRECT"
 MODES = ("docker", "direct")
 
 
@@ -160,7 +160,7 @@ AGENTS: dict[str, Agent] = {
     "pentestgpt": Agent(
         key="pentestgpt",
         label="PentestGPT",
-        image="safetynet-agent",
+        image="safetywebbing-agent",
         auth="claude_oauth",
         description="Agent PentestGPT đã vendor; xác thực bằng phiên Claude Code của host.",
         modes=("docker", "direct"),
@@ -168,7 +168,7 @@ AGENTS: dict[str, Agent] = {
     "hackingbuddy": Agent(
         key="hackingbuddy",
         label="hackingBuddyGPT (web)",
-        image="safetynet-hackingbuddy",
+        image="safetywebbing-hackingbuddy",
         auth="llm_api_key",
         description="Use-case web của hackingBuddyGPT; cần API key LLM trong môi trường server.",
         modes=("docker",),

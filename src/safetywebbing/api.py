@@ -1,4 +1,4 @@
-"""SafetyNet HTTP API + static frontend (ARCHITECTURE.md §6).
+"""SafetyWebbing HTTP API + static frontend (ARCHITECTURE.md §6).
 
 The backend only orchestrates. It validates the target against the local
 whitelist and maps a scan type to a fixed goal BEFORE any engine runs — the user
@@ -67,7 +67,7 @@ _MAX_CONCURRENT_SCANS = 2
 _MAX_JOBS = 200  # hard cap on retained job records
 _JOB_TTL_S = 60 * 60  # prune finished jobs after an hour
 
-app = FastAPI(title="SafetyNet", version="0.1.0")
+app = FastAPI(title="SafetyWebbing", version="0.1.0")
 
 replay_engine = ReplayEngine(runs_root=_SAMPLES)
 live_engine = LiveAgentEngine(runs_root=_LIVE_RUNS)  # mode "docker" (isolated)
@@ -517,7 +517,7 @@ def history_page() -> FileResponse:
 
 @app.get("/about")
 def about() -> FileResponse:
-    """Explainer page: how the pipeline works and what SafetyNet adds on top of PentestGPT."""
+    """Explainer page: how the pipeline works and what SafetyWebbing adds on top of PentestGPT."""
     return FileResponse(_WEB_DIR / "about.html")
 
 

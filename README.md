@@ -1,6 +1,6 @@
-# SafetyNet
+# SafetyWebbing
 
-Dự án khoa học cấp trường. SafetyNet nhận một URL web **local** được phép kiểm thử, cho một agent
+Dự án khoa học cấp trường. SafetyWebbing nhận một URL web **local** được phép kiểm thử, cho một agent
 quét chạy **trong môi trường cô lập**, rồi dùng LLM **tổng hợp kết quả thành báo cáo lỗ hổng**.
 
 > Agent AI đóng vai tổng hợp/giải thích. Nó **không** tự chọn mục tiêu, **không** tự quyết định tấn
@@ -8,13 +8,13 @@ quét chạy **trong môi trường cô lập**, rồi dùng LLM **tổng hợp 
 
 ## Thành phần
 
-- `src/safetynet/` — app host (FastAPI, sắp tới). Chỉ orchestrate; không chạy agent in-process.
+- `src/safetywebbing/` — app host (FastAPI, sắp tới). Chỉ orchestrate; không chạy agent in-process.
   - `config.py` — whitelist target local + goal template cố định (2 ràng buộc an toàn cứng).
   - `engines/` — interface engine + `LiveAgentEngine` (chạy agent trong Docker).
 - `agent_image/` — image Docker chứa agent PentestGPT đã **vendor** (10 file) + `unified-agent`.
   Agent FULL_ACCESS chỉ chạy bên trong container này.
 - `agent_image_hackingbuddy/` — image Docker cho agent thứ hai: use-case web của hackingBuddyGPT,
-  bọc bởi một wrapper nói đúng hợp đồng `summary.json` của SafetyNet (xem “Chọn agent” bên dưới).
+  bọc bởi một wrapper nói đúng hợp đồng `summary.json` của SafetyWebbing (xem “Chọn agent” bên dưới).
 - `runs/` — kết quả scan (`summary.json` + `traces/`), bind-mount từ container ra host.
 
 ## Nguồn vendor
@@ -29,13 +29,13 @@ Claude Code đã đăng nhập trên host (`~/.claude`).
 
 ```bash
 # 1. Build image (một lần)
-docker build -t safetynet-agent ./agent_image
+docker build -t safetywebbing-agent ./agent_image
 
 # 2. Chạy thử trực tiếp (bỏ qua backend, để kiểm tra image)
 docker run --rm --add-host host.docker.internal:host-gateway \
   -v "$PWD/runs:/work/runs" \
   -v "$HOME/.claude:/root/.claude:ro" \
-  safetynet-agent \
+  safetywebbing-agent \
   --goal "Tim SQL injection tren web app duoc phep kiem thu." \
   --target http://host.docker.internal:3000 \
   --backend claude --run-id smoke-01 --runs-root /work/runs
@@ -47,7 +47,7 @@ Kết quả nằm ở `runs/smoke-01/summary.json`.
 
 | Chế độ | Cách chạy | Cô lập | Dùng khi |
 |---|---|---|---|
-| `docker` (mặc định) | `docker run` image `safetynet-agent` | Có — container là ranh giới an toàn | Mặc định; demo; target không hoàn toàn tin được |
+| `docker` (mặc định) | `docker run` image `safetywebbing-agent` | Có — container là ranh giới an toàn | Mặc định; demo; target không hoàn toàn tin được |
 | `direct` | chạy thẳng CLI `pentestgpt-agent` như tiến trình trên máy | **Không** — agent toàn quyền trên máy bạn | Lặp nhanh trên máy dev, không có Docker |
 
 Whitelist loopback, goal cố định, audit log, adapter và báo cáo **giống hệt** ở cả hai chế độ.
@@ -62,11 +62,11 @@ Cần: Claude Code CLI đã đăng nhập trên máy, và agent cài trong venv 
 uv venv .agent-venv --python 3.12
 uv pip install --python .agent-venv/Scripts/python.exe ./agent_image   # Linux/macOS: .agent-venv/bin/python
 
-# 2. Khởi động server với opt-in (PowerShell: $env:SAFETYNET_ALLOW_DIRECT = "1")
-SAFETYNET_ALLOW_DIRECT=1 uv run uvicorn safetynet.api:app --port 8000
+# 2. Khởi động server với opt-in (PowerShell: $env:SAFETYWEBBING_ALLOW_DIRECT = "1")
+SAFETYWEBBING_ALLOW_DIRECT=1 uv run uvicorn safetywebbing.api:app --port 8000
 ```
 
-Engine tự tìm `.agent-venv`; muốn dùng lệnh khác thì đặt `SAFETYNET_AGENT_CMD`
+Engine tự tìm `.agent-venv`; muốn dùng lệnh khác thì đặt `SAFETYWEBBING_AGENT_CMD`
 (ví dụ `uv run --project agent_image pentestgpt-agent`). Trên UI, ô **Chế độ chạy** sẽ mở khoá
 mục “Trực tiếp trên máy”; gọi API thì thêm `"mode": "direct"` vào `POST /api/scan`.
 `GET /api/modes` cho biết chế độ nào đang khả dụng và vì sao không.
@@ -128,21 +128,21 @@ image Docker và cách xác thực LLM. Khai báo trong `config.py` (`AGENTS`); 
 
 | Agent | Image | Xác thực LLM | Chế độ | Ghi chú |
 |---|---|---|---|---|
-| `pentestgpt` (mặc định) | `safetynet-agent` | Phiên Claude Code OAuth của host (mount bản sao tạm) | `docker`, `direct` | Agent PentestGPT đã vendor; hành vi như trước. |
-| `hackingbuddy` | `safetynet-hackingbuddy` | API key LLM qua litellm (nhập trên UI mỗi lần quét, hoặc env server) | chỉ `docker` | Use-case **web** của [hackingBuddyGPT](https://github.com/ipa-lab/hackingBuddyGPT) (`WebTestingWithExplanation`). |
+| `pentestgpt` (mặc định) | `safetywebbing-agent` | Phiên Claude Code OAuth của host (mount bản sao tạm) | `docker`, `direct` | Agent PentestGPT đã vendor; hành vi như trước. |
+| `hackingbuddy` | `safetywebbing-hackingbuddy` | API key LLM qua litellm (nhập trên UI mỗi lần quét, hoặc env server) | chỉ `docker` | Use-case **web** của [hackingBuddyGPT](https://github.com/ipa-lab/hackingBuddyGPT) (`WebTestingWithExplanation`). |
 
 Chỉ dùng use-case **web** của hackingBuddy (nhận một URL `--host`), khớp với mô hình an toàn của
-SafetyNet (whitelist loopback + cô lập container). Các use-case privesc (SSH/local-shell chạy lệnh
+SafetyWebbing (whitelist loopback + cô lập container). Các use-case privesc (SSH/local-shell chạy lệnh
 thật trên máy) **không** được đưa vào. hackingBuddy chỉ chạy ở chế độ `docker` (có ranh giới cô lập);
 nó không có đường `direct`.
 
 ### Build image hackingBuddy
 
 ```bash
-docker build -t safetynet-hackingbuddy ./agent_image_hackingbuddy
+docker build -t safetywebbing-hackingbuddy ./agent_image_hackingbuddy
 ```
 
-Wrapper (`agent_image_hackingbuddy/safetynet_hb_agent/`) nhận **đúng** bộ tham số CLI như agent
+Wrapper (`agent_image_hackingbuddy/safetywebbing_hb_agent/`) nhận **đúng** bộ tham số CLI như agent
 PentestGPT (`--goal --target --run-id --runs-root …`), chạy `wintermute WebTestingWithExplanation
 --host <target> --hints <goal> …`, rồi dịch log JSONL của hackingBuddy sang `summary.json` + `traces/`
 (`translate.py`, đã có unit test).
@@ -167,10 +167,10 @@ key từ UI được tiêm vào môi trường của tiến trình `docker` dư�
 một tên đó vào container.
 
 **Model** là chuỗi **định dạng litellm** (`anthropic/claude-sonnet-5-5`, `gemini/gemini-1.5-pro`,
-`gpt-4o`, `openrouter/…`) — khác model id của Claude Code. Thứ tự: `SAFETYNET_HB_LLM_MODEL` (ưu tiên) →
+`gpt-4o`, `openrouter/…`) — khác model id của Claude Code. Thứ tự: `SAFETYWEBBING_HB_LLM_MODEL` (ưu tiên) →
 ô **Model** trên UI/`--model`: id trần `claude-…`/`gemini-…` tự map thành `anthropic/…`/`gemini/…` theo
 provider, hoặc để nguyên nếu đã có `/` → mặc định theo provider. Tinh chỉnh thêm:
-`SAFETYNET_HB_LLM_API_BASE`, `SAFETYNET_HB_LLM_CONTEXT_SIZE`.
+`SAFETYWEBBING_HB_LLM_API_BASE`, `SAFETYWEBBING_HB_LLM_CONTEXT_SIZE`.
 
 > Lưu ý an toàn: key này được đưa vào container agent FULL_ACCESS (đọc nội dung web không tin cậy).
 > Container là ranh giới cô lập; đây là đánh đổi cần thiết vì hackingBuddy bắt buộc phải có key LLM.
@@ -181,9 +181,9 @@ Thử 3 model với cùng goal SQLi, khác target đúng theo kết quả quan s
 
 | Model | Kết quả | Ghi chú |
 |---|---|---|
-| `claude-opus-5-5` | Bị chặn ngay (`exit 1`, 2 lần thử) | Bộ lọc an toàn của Anthropic (Opus 5) đánh dấu prompt pentest — lỗi `API Error: ... safeguards flagged this message`. Không liên quan code SafetyNet; xem [support.claude.com](https://support.claude.com/) nếu cần dùng Opus cho mục đích bảo mật hợp pháp. |
-| `claude-sonnet-5-5` | `completed`, nhưng **vô nghĩa** | Target lúc đó (`:5173`, SPA tĩnh) không có API để tìm SQLi. Agent `FULL_ACCESS` không có container nên tự ý đọc mã nguồn `src/safetynet/` và gửi request thử SQLi vào chính API SafetyNet ở `:8000`. Bị `config.validate_target` chặn nên không gây hậu quả thật, nhưng là bằng chứng cụ thể rằng `direct` mode không có ranh giới an toàn — đúng như cảnh báo trên UI. |
-| `claude-haiku-5-5` | `failed`, nhưng **có dữ liệu thật** | Nhắm đúng vào một app Next.js thật (`:3000`). Agent tìm ra tham số `category`, test SQLi boolean-based (`AND '1'='1'` so với `AND '1'='2'`) — hai lần cho kết quả **giống hệt nhau** (132 sản phẩm) → không có SQLi ở điểm này. Toàn bộ run vẫn bị đánh dấu `failed` vì một bản tóm tắt của Executor dài 2054 ký tự, vượt giới hạn cứng **2000 ký tự** trong code vendor (`agent_image/pentestgpt_agent/execution.py:309`), chỉ hơn 54 ký tự. Không phải lỗi SafetyNet; chưa thử lại để biết đây là ngẫu nhiên hay haiku có xu hướng viết dài hơn mức schema cho phép. |
+| `claude-opus-5-5` | Bị chặn ngay (`exit 1`, 2 lần thử) | Bộ lọc an toàn của Anthropic (Opus 5) đánh dấu prompt pentest — lỗi `API Error: ... safeguards flagged this message`. Không liên quan code SafetyWebbing; xem [support.claude.com](https://support.claude.com/) nếu cần dùng Opus cho mục đích bảo mật hợp pháp. |
+| `claude-sonnet-5-5` | `completed`, nhưng **vô nghĩa** | Target lúc đó (`:5173`, SPA tĩnh) không có API để tìm SQLi. Agent `FULL_ACCESS` không có container nên tự ý đọc mã nguồn `src/safetywebbing/` và gửi request thử SQLi vào chính API SafetyWebbing ở `:8000`. Bị `config.validate_target` chặn nên không gây hậu quả thật, nhưng là bằng chứng cụ thể rằng `direct` mode không có ranh giới an toàn — đúng như cảnh báo trên UI. |
+| `claude-haiku-5-5` | `failed`, nhưng **có dữ liệu thật** | Nhắm đúng vào một app Next.js thật (`:3000`). Agent tìm ra tham số `category`, test SQLi boolean-based (`AND '1'='1'` so với `AND '1'='2'`) — hai lần cho kết quả **giống hệt nhau** (132 sản phẩm) → không có SQLi ở điểm này. Toàn bộ run vẫn bị đánh dấu `failed` vì một bản tóm tắt của Executor dài 2054 ký tự, vượt giới hạn cứng **2000 ký tự** trong code vendor (`agent_image/pentestgpt_agent/execution.py:309`), chỉ hơn 54 ký tự. Không phải lỗi SafetyWebbing; chưa thử lại để biết đây là ngẫu nhiên hay haiku có xu hướng viết dài hơn mức schema cho phép. |
 
 Rút ra: chế độ `direct` thực thi đúng như thiết kế (không container, đọc được mọi thứ trên máy host),
 nên chỉ nên dùng với target mà bạn chắc chắn tin tưởng. `claude-haiku-5-5` là model duy nhất trong 3

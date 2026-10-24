@@ -1,22 +1,22 @@
-"""SafetyNet ⇄ hackingBuddyGPT wrapper CLI.
+"""SafetyWebbing ⇄ hackingBuddyGPT wrapper CLI.
 
-This is the entrypoint of the ``safetynet-hackingbuddy`` Docker image. It presents
+This is the entrypoint of the ``safetywebbing-hackingbuddy`` Docker image. It presents
 the SAME command-line contract as the PentestGPT agent image (``--goal --target
 --run-id --runs-root …``) and writes the SAME on-disk result (``runs/<run_id>/
-summary.json`` + ``traces/``), so SafetyNet's engine and pipeline treat the two
+summary.json`` + ``traces/``), so SafetyWebbing's engine and pipeline treat the two
 agents identically. Internally it:
 
-  1. maps the SafetyNet request onto hackingBuddyGPT's ``WebTestingWithExplanation``
+  1. maps the SafetyWebbing request onto hackingBuddyGPT's ``WebTestingWithExplanation``
      web use-case (``wintermute WebTestingWithExplanation --host … --hints …``);
   2. resolves an LLM for litellm from the environment (hackingBuddy does not use
      the Claude Code CLI that PentestGPT uses — see the model note below);
   3. runs it, then translates the run's JSONL span log into summary.json + traces
-     via :mod:`safetynet_hb_agent.translate`.
+     via :mod:`safetywebbing_hb_agent.translate`.
 
 Model note: PentestGPT takes a Claude Code model id (``claude-sonnet-5-5``);
 hackingBuddy takes a *litellm* model string (``anthropic/claude-3-5-sonnet-latest``,
 ``openrouter/…``, ``gpt-4o``). They are not interchangeable, so the litellm model
-is resolved from ``SAFETYNET_HB_LLM_MODEL`` (preferred), or a ``--model`` already in
+is resolved from ``SAFETYWEBBING_HB_LLM_MODEL`` (preferred), or a ``--model`` already in
 litellm form, or a per-provider default chosen from whichever API key is present.
 """
 
@@ -36,7 +36,7 @@ from .translate import translate
 _USECASE = "WebTestingWithExplanation"
 
 # Provider API keys, in the order we prefer them, with the default litellm model
-# and api_base to use when the operator did not pin one via SAFETYNET_HB_LLM_MODEL.
+# and api_base to use when the operator did not pin one via SAFETYWEBBING_HB_LLM_MODEL.
 _PROVIDERS = [
     ("ANTHROPIC_API_KEY", "anthropic/claude-3-5-sonnet-latest", None),
     ("GEMINI_API_KEY", "gemini/gemini-1.5-pro", None),
@@ -46,7 +46,7 @@ _PROVIDERS = [
 
 
 def _parse_args(argv: list[str]) -> argparse.Namespace:
-    p = argparse.ArgumentParser(prog="safetynet-hackingbuddy-agent")
+    p = argparse.ArgumentParser(prog="safetywebbing-hackingbuddy-agent")
     # The PentestGPT-image contract. Unused-by-hackingBuddy args are accepted and
     # ignored so a single engine can launch either image with one argv shape.
     for a in ("--goal", "--target", "--backend", "--model", "--run-id", "--runs-root",
@@ -74,11 +74,11 @@ def _resolve_llm(model_arg: str | None) -> tuple[str, str, str | None]:
             + ", ".join(name for name, _, _ in _PROVIDERS)
         )
 
-    # Resolve the litellm model string. Precedence: an explicit SAFETYNET_HB_LLM_MODEL,
+    # Resolve the litellm model string. Precedence: an explicit SAFETYWEBBING_HB_LLM_MODEL,
     # then --model (a Claude Code id like `claude-sonnet-5-5` is mapped onto the
     # Anthropic API so the UI's model field "just works" with Claude; an id that is
     # already litellm-format is used as-is), else the provider's default.
-    model = os.environ.get("SAFETYNET_HB_LLM_MODEL") or ""
+    model = os.environ.get("SAFETYWEBBING_HB_LLM_MODEL") or ""
     if not model and model_arg:
         if "/" in model_arg:
             model = model_arg  # already a litellm-format string (e.g. anthropic/…)
@@ -90,7 +90,7 @@ def _resolve_llm(model_arg: str | None) -> tuple[str, str, str | None]:
             model = model_arg  # bare OpenAI ids (gpt-4o, …) are already litellm-valid
     if not model:
         model = provider_model or ""
-    api_base = os.environ.get("SAFETYNET_HB_LLM_API_BASE") or provider_base
+    api_base = os.environ.get("SAFETYWEBBING_HB_LLM_API_BASE") or provider_base
     return api_key, model, api_base
 
 
@@ -113,7 +113,7 @@ def _build_wintermute_cmd(
         f"--log.tag={run_id}",
     ]
     if goal:
-        # Steer the flag-hunting web agent toward the fixed SafetyNet scan goal.
+        # Steer the flag-hunting web agent toward the fixed SafetyWebbing scan goal.
         cmd.append(f"--hints={goal}")
     if api_base:
         cmd.append(f"--llm.api_base={api_base}")
@@ -171,7 +171,7 @@ def main(argv: list[str] | None = None) -> int:
     # load_run_result never raises ScanFailed for a run that actually started.
     try:
         api_key, model, api_base = _resolve_llm(args.model)
-        context_size = os.environ.get("SAFETYNET_HB_LLM_CONTEXT_SIZE", "30000")
+        context_size = os.environ.get("SAFETYWEBBING_HB_LLM_CONTEXT_SIZE", "30000")
 
         workspace = Path(args.workspace_root) if args.workspace_root else runs_root.parent
         workspace.mkdir(parents=True, exist_ok=True)
@@ -185,7 +185,7 @@ def main(argv: list[str] | None = None) -> int:
             max_rounds=args.max_decisions, log_dir=log_dir, run_id=run_id,
             context_size=context_size,
         )
-        print(f"[safetynet-hb] running: {' '.join(cmd)}", flush=True)
+        print(f"[safetywebbing-hb] running: {' '.join(cmd)}", flush=True)
         # Fixed argv, no shell; we inspect the result ourselves rather than raising.
         proc = subprocess.run(cmd, cwd=str(cwd), check=False)
 
@@ -204,7 +204,7 @@ def main(argv: list[str] | None = None) -> int:
             spans, run_id=run_id, goal=goal, target=target, model=model,
         )
         _write_result(runs_root, run_id, summary, traces)
-        print(f"[safetynet-hb] wrote summary.json (status={summary['status']})", flush=True)
+        print(f"[safetywebbing-hb] wrote summary.json (status={summary['status']})", flush=True)
         return 0 if summary["status"] != "error" else 1
     except Exception as exc:  # noqa: BLE001 - must still leave a readable summary
         import traceback

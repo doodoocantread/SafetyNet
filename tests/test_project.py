@@ -5,10 +5,10 @@ import asyncio
 import pytest
 from fastapi import HTTPException
 
-from safetynet import api
-from safetynet.audit import record_scan
-from safetynet.config import InvalidProject, validate_project
-from safetynet.history import list_history
+from safetywebbing import api
+from safetywebbing.audit import record_scan
+from safetywebbing.config import InvalidProject, validate_project
+from safetywebbing.history import list_history
 
 
 @pytest.mark.parametrize("raw, want", [

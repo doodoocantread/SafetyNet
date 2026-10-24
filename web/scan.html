@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>SafetyNet — Quét mới</title>
+<title>SafetyWebbing — Quét mới</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;750&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
@@ -19,7 +19,7 @@
 <script type="text/babel" src="/static/shared.jsx"></script>
 <script type="text/babel">
 /* ---------- app ---------- */
-document.title = tr("SafetyNet — Quét mới", "SafetyNet — New scan");
+document.title = tr("SafetyWebbing — Quét mới", "SafetyWebbing — New scan");
 function App() {
   const [types, setTypes] = useState([]);
   const [runs, setRuns] = useState([]);
@@ -68,7 +68,7 @@ function App() {
   // the server never stores it. Reload the remembered key when the provider changes.
   const needsKey = !!(agentInfo && agentInfo.needs_key);
   const providerInfo = providers.find(p => p.key === llmProvider);
-  const keyName = "safetynet_llm_key_" + llmProvider;
+  const keyName = "safetywebbing_llm_key_" + llmProvider;
   useEffect(() => {
     try { setLlmApiKey(localStorage.getItem(keyName) || ""); } catch { setLlmApiKey(""); }
   }, [llmProvider]);

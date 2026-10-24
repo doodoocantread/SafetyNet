@@ -138,8 +138,8 @@ function Hero({title, children}) {
   return <div className="hero"><h1>{title}</h1><p>{children}</p></div>;
 }
 
-const FOOTER = tr("SafetyNet · dự án khoa học · AI tổng hợp kết quả scan, không tự quyết định tấn công",
-                  "SafetyNet · science project · AI summarizes scan results, never decides to attack on its own");
+const FOOTER = tr("SafetyWebbing · dự án khoa học · AI tổng hợp kết quả scan, không tự quyết định tấn công",
+                  "SafetyWebbing · science project · AI summarizes scan results, never decides to attack on its own");
 
 /* ---------- small components ---------- */
 function StatusPill({status}) {
@@ -379,7 +379,7 @@ const NAV = [
 
 function AppBar({active}) {
   return <header className="appbar">
-    <a className="brand" href="/"><span className="logo">🛡</span> SafetyNet <span className="ver">v0.1</span></a>
+    <a className="brand" href="/"><span className="logo">🛡</span> SafetyWebbing <span className="ver">v0.1</span></a>
     <nav className="mainnav" aria-label={tr("Menu chính", "Main menu")}>
       {NAV.map(n => <a key={n.key} href={n.href} className={n.key === active ? "on" : ""}
         aria-current={n.key === active ? "page" : undefined}>{n.label}</a>)}

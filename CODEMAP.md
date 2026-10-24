@@ -1,4 +1,4 @@
-# SafetyNet — Bản đồ code
+# SafetyWebbing — Bản đồ code
 
 > Tài liệu này mô tả **code đang có thật** (khác với [`ARCHITECTURE.md`](ARCHITECTURE.md) là tài liệu
 > thiết kế). Số dòng và `file:line` tính tại commit `072056a`. Sơ đồ dùng Mermaid (GitHub / VS Code
@@ -6,10 +6,10 @@
 
 ## 1. Một đoạn để nắm toàn cảnh
 
-SafetyNet nhận một URL **local** + một loại scan, chạy agent pentest **trong Docker**, rồi biến kết quả
+SafetyWebbing nhận một URL **local** + một loại scan, chạy agent pentest **trong Docker**, rồi biến kết quả
 scan thành báo cáo lỗ hổng. Code chia làm **hai thế giới tách biệt**:
 
-| | Host app (`src/safetynet`) | Agent vendor (`agent_image/pentestgpt_agent`) |
+| | Host app (`src/safetywebbing`) | Agent vendor (`agent_image/pentestgpt_agent`) |
 |---|---|---|
 | Vai trò | Orchestrate: validate → spawn Docker → đọc kết quả → gán nhãn → báo cáo | Thực sự quét: Supervisor (LLM) lên kế hoạch, Executor (LLM) chạy lệnh |
 | Quy mô | ~1.210 dòng Python, 15 file | ~3.960 dòng Python, 10 file (mã vendor từ PentestGPT) |
@@ -25,11 +25,11 @@ Ngoài ra: `web/` (1 trang React, không build), `samples/` (1 run mẫu SQLi tr
 ## 2. Cây thư mục
 
 ```
-SafetyNet/
+SafetyWebbing/
 ├── ARCHITECTURE.md · README.md · pyproject.toml · uv.lock
-├── .claude/launch.json              # cấu hình dev server: uv run uvicorn safetynet.api:app :8000
+├── .claude/launch.json              # cấu hình dev server: uv run uvicorn safetywebbing.api:app :8000
 │
-├── src/safetynet/                   # ── HOST APP ──────────────────────────────────────
+├── src/safetywebbing/                   # ── HOST APP ──────────────────────────────────────
 │   ├── api.py            (191)      # FastAPI: endpoint, job store in-memory, phục vụ web/
 │   ├── config.py         (115)      # ★ 2 luật an toàn: whitelist loopback + goal template cố định; validate_run_id
 │   ├── audit.py           (52)      # ★ ghi runs/audit.log (JSONL, append-only, best-effort)
@@ -57,14 +57,14 @@ SafetyNet/
 │       ├── execution.py (391)       # ExecutionDelta + compile_execution() (validator bằng chứng)
 │       ├── memory.py   (1002)       # MemoryKernel: nguồn sự thật SQLite (runs/tasks/attempts/observations/transitions)
 │       ├── trace.py     (436)       # TraceStore + EpisodeRunner: ghi journal từng episode
-│       ├── audit.py     (447)       # audit_run() cho benchmark CTF (SafetyNet không dùng)
+│       ├── audit.py     (447)       # audit_run() cho benchmark CTF (SafetyWebbing không dùng)
 │       ├── identifiers.py (18)      # validate_opaque_id (chống path traversal)
 │       └── __init__.py    (3)
 │
 ├── agent_image_hackingbuddy/        # ── IMAGE DOCKER (agent #2) ──────────────────────
 │   ├── Dockerfile                   # python:3.13-slim + hackingBuddyGPT; user `agent`; không mount creds
-│   ├── pyproject.toml               # hackingBuddyGPT==0.5.0; script safetynet-hackingbuddy-agent
-│   └── safetynet_hb_agent/          # wrapper nói hợp đồng CLI của SafetyNet
+│   ├── pyproject.toml               # hackingBuddyGPT==0.5.0; script safetywebbing-hackingbuddy-agent
+│   └── safetywebbing_hb_agent/          # wrapper nói hợp đồng CLI của SafetyWebbing
 │       ├── cli.py                   # map args → wintermute WebTestingWithExplanation → viết summary.json
 │       └── translate.py             # ★ JSONL span của hackingBuddy → summary.json + traces/ (thuần, có test)
 │
@@ -85,7 +85,7 @@ flowchart LR
         UI["web/*.html<br/>React 18 qua CDN"]
     end
 
-    subgraph Host["Host: FastAPI (src/safetynet)"]
+    subgraph Host["Host: FastAPI (src/safetywebbing)"]
         API["api.py"]
         CFG["config.py<br/>whitelist + goal"]
         AUD["audit.py"]
@@ -182,7 +182,7 @@ sequenceDiagram
     A->>A: chờ semaphore (tối đa 2 scan song song)
     A->>L: run(target, goal, run_id)
     L->>L: copy creds tạm, đổi 127.0.0.1 → host.docker.internal
-    L->>D: docker run --rm ... safetynet-agent
+    L->>D: docker run --rm ... safetywebbing-agent
     D-->>L: runs/run_id/summary.json + traces/
     L-->>A: RunResult
     A->>P: build_report(RunResult)
@@ -203,7 +203,7 @@ serialize được / không cần thiết, UI đọc `log` qua endpoint riêng).
 asyncio.Task của job. `_run_live_job` bọc toàn bộ thân hàm (kể cả lúc chờ semaphore) trong
 `try/except asyncio.CancelledError` nên hủy lúc đang `queued` hay đang `running` đều chuyển job sang
 `cancelled` một cách sạch sẽ. Mỗi engine tự dọn việc thật của mình khi bị cancel:
-`LiveAgentEngine.run` giờ đặt `--name safetynet-<run_id>` cho container rồi `docker kill` tên đó
+`LiveAgentEngine.run` giờ đặt `--name safetywebbing-<run_id>` cho container rồi `docker kill` tên đó
 (trước đây chỉ kill được CLI client `docker run`, container vẫn chạy tiếp — xem mục 9.A.3 đã sửa);
 `LocalAgentEngine.run` đã có sẵn `_kill_tree` (taskkill /T /F trên Windows, `killpg` trên Unix).
 
@@ -254,7 +254,7 @@ tool_result.call_id ───────────► sự kiện tool_call c
 | `labeling.py` | `Labeler` (Protocol), `HeuristicLabeler`, `label_findings` | Luật: SQLi bypass (critical), SQLi lỗi 500 (medium), XSS phản chiếu (high), 500 (low), 401/403 (info) |
 | `labeling_llm.py` | `LLMLabeler(model, api_key)` | System prompt tiếng Việt; evidence đóng khung `<EVIDENCE>…</EVIDENCE>` (chống prompt injection); lỗi bất kỳ → fallback heuristic |
 | `owasp.py` | `owasp_for_cwe("CWE-89")`, `CWE_TO_OWASP` | 22 CWE → các nhóm A01/A02/A03/A05/A07/A08/A10 (2021) |
-| `pipeline.py` | `build_report(result, labeler=None)`, `default_labeler()` | Có `ANTHROPIC_API_KEY` → LLM (model mặc định `claude-opus-5-5`, đổi bằng `SAFETYNET_LLM_MODEL`), không thì heuristic |
+| `pipeline.py` | `build_report(result, labeler=None)`, `default_labeler()` | Có `ANTHROPIC_API_KEY` → LLM (model mặc định `claude-opus-5-5`, đổi bằng `SAFETYWEBBING_LLM_MODEL`), không thì heuristic |
 | `report.py` | `to_markdown(report)` | Cắt response ở 1.200 ký tự; có cảnh báo khi run không hoàn tất |
 
 ### API HTTP (`api.py`)
@@ -382,7 +382,7 @@ Host chỉ dùng: `goal, targets, status, error, cost_usd, wall_duration_s, task
 | Thêm agent (vd hackingBuddy) | thêm mục vào `config.AGENTS` (image + auth + modes); nếu agent ngoài → tạo image mới có wrapper ghi `summary.json` + `traces/` như `agent_image_hackingbuddy/` |
 | Đổi cách ghép request/response | `adapter.py` → `_recover_request` |
 | Đổi luật nhãn offline | `labeling.py` → `HeuristicLabeler` |
-| Đổi prompt/model của LLM labeler | `labeling_llm.py` (`_SYSTEM`) · biến môi trường `SAFETYNET_LLM_MODEL` |
+| Đổi prompt/model của LLM labeler | `labeling_llm.py` (`_SYSTEM`) · biến môi trường `SAFETYWEBBING_LLM_MODEL` |
 | Thêm CWE → OWASP | `owasp.py` → `CWE_TO_OWASP` |
 | Đổi định dạng báo cáo | `report.py` (Markdown) + `Report`/`Finding` trong `web/shared.jsx` |
 | Đổi tham số `docker run` (mạng, tài nguyên, timeout) | `engines/live.py` → `build_command`, `timeout_s` |
@@ -415,7 +415,7 @@ Host chỉ dùng: `goal, targets, status, error, cost_usd, wall_duration_s, task
    đúng, nhưng token trong đó vẫn hợp lệ; cộng với egress mở ở điểm 1, agent bị lừa có thể đẩy token ra ngoài.
    Siết mạng (điểm 1) giải quyết cả hai.
 3. ~~**Timeout có thể để container chạy tiếp**~~ — **đã sửa.** `build_command` giờ đặt
-   `--name safetynet-<run_id>`; `run()` gọi `docker kill safetynet-<run_id>` (best-effort, nuốt lỗi nếu
+   `--name safetywebbing-<run_id>`; `run()` gọi `docker kill safetywebbing-<run_id>` (best-effort, nuốt lỗi nếu
    docker vắng mặt) cả khi timeout lẫn khi job bị hủy qua `POST /api/scan/{job_id}/cancel`, trước khi
    `proc.kill()` tiến trình client. Có test (`test_timeout_kills_container`,
    `test_cancel_kills_container_and_propagates` trong `tests/test_safety.py`) giả lập bằng subprocess
@@ -453,7 +453,7 @@ Host chỉ dùng: `goal, targets, status, error, cost_usd, wall_duration_s, task
     demo "không sợ fail" thật ra **cần Internet** (unpkg, Google Fonts).
 12. **Mã vendor không dùng tới**: `agent_image/pentestgpt_agent/audit.py` (447 dòng, `audit_run(expected_flag=…)` cho
     benchmark CTF), backend `codex`, cờ `--resume`. Giữ nguyên để dễ đồng bộ upstream là hợp lý — chỉ cần biết
-    chúng là "chết" trong ngữ cảnh SafetyNet.
+    chúng là "chết" trong ngữ cảnh SafetyWebbing.
 
 ### Việc nên làm trước (đề xuất)
 

@@ -30,7 +30,7 @@ from pathlib import Path
 
 from .base import RunResult, ScanFailed, load_run_result
 
-AGENT_CMD_ENV = "SAFETYNET_AGENT_CMD"
+AGENT_CMD_ENV = "SAFETYWEBBING_AGENT_CMD"
 _AGENT_EXE = "pentestgpt-agent"
 
 # Mirrors the ENV block of agent_image/Dockerfile.
@@ -50,7 +50,7 @@ def resolve_agent_command(
 ) -> list[str] | None:
     """Find the argv prefix that launches the agent CLI, or None.
 
-    Order: $SAFETYNET_AGENT_CMD (may be several words, e.g. `uv run --project
+    Order: $SAFETYWEBBING_AGENT_CMD (may be several words, e.g. `uv run --project
     agent_image pentestgpt-agent`) → a dedicated `.agent-venv` in `search_dirs`
     → `pentestgpt-agent` on PATH.
     """

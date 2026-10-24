@@ -2,15 +2,15 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "safetynet",
+      "name": "safetywebbing",
       "runtimeExecutable": "uv",
-      "runtimeArgs": ["run", "uvicorn", "safetynet.api:app", "--port", "8000", "--host", "127.0.0.1"],
+      "runtimeArgs": ["run", "uvicorn", "safetywebbing.api:app", "--port", "8000", "--host", "127.0.0.1"],
       "port": 8000
     },
     {
-      "name": "safetynet-dev",
+      "name": "safetywebbing-dev",
       "runtimeExecutable": "uv",
-      "runtimeArgs": ["run", "uvicorn", "safetynet.api:app", "--port", "8001", "--host", "127.0.0.1", "--reload"],
+      "runtimeArgs": ["run", "uvicorn", "safetywebbing.api:app", "--port", "8001", "--host", "127.0.0.1", "--reload"],
       "port": 8001
     }
   ]

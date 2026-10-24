@@ -1,8 +1,8 @@
-"""Translate a hackingBuddyGPT run log into SafetyNet's summary.json + traces/.
+"""Translate a hackingBuddyGPT run log into SafetyWebbing's summary.json + traces/.
 
 hackingBuddyGPT writes one OpenTelemetry/GenAI JSONL file per run: a root span
 plus ``chat`` spans (one LLM turn each) and ``execute_tool`` spans (one tool call
-each — for the web use-case, an HTTP request). SafetyNet's pipeline instead
+each — for the web use-case, an HTTP request). SafetyWebbing's pipeline instead
 expects, per run:
 
     summary.json                    — tasks / attempts / observations + metadata
@@ -78,7 +78,7 @@ def _run_duration_s(roots: list[dict[str, Any]]) -> float:
 
 
 def _map_status(status_code: str, state: str) -> str:
-    """hackingBuddy outcome → SafetyNet run status (completed | failed | error).
+    """hackingBuddy outcome → SafetyWebbing run status (completed | failed | error).
 
     A solved run (``got root``/explicit completion) ends OK → ``completed``. An
     ERROR that is merely a resource-limit reason (max rounds/tokens/cost/time)

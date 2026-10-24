@@ -5,12 +5,12 @@ from __future__ import annotations
 import json
 from types import SimpleNamespace
 
-from safetynet.adapter import adapt
-from safetynet.labeling import HeuristicLabeler
-from safetynet.labeling_llm import LLMLabeler
-from safetynet.models import Finding
-from safetynet.report import to_markdown
-from safetynet.models import Report
+from safetywebbing.adapter import adapt
+from safetywebbing.labeling import HeuristicLabeler
+from safetywebbing.labeling_llm import LLMLabeler
+from safetywebbing.models import Finding
+from safetywebbing.report import to_markdown
+from safetywebbing.models import Report
 
 
 def test_adapter_attaches_agent_note_by_attempt(tmp_path):

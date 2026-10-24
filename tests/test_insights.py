@@ -5,10 +5,10 @@ import json
 import pytest
 from fastapi import HTTPException
 
-from safetynet import api
-from safetynet.audit import record_scan
-from safetynet.history import save_report
-from safetynet.insights import (
+from safetywebbing import api
+from safetywebbing.audit import record_scan
+from safetywebbing.history import save_report
+from safetywebbing.insights import (
     InvalidTriage,
     build_overview,
     collect_vulns,
@@ -196,7 +196,7 @@ def test_load_triage_ignores_garbage(tmp_path):
 
 
 def test_overview_totals(tmp_path):
-    from safetynet.history import list_history
+    from safetywebbing.history import list_history
 
     _scan(tmp_path, "live-a", "2026-01-01T00:00:00+00:00", [
         _finding(),

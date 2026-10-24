@@ -4,9 +4,9 @@ import json
 
 import pytest
 
-from safetynet import api, system
-from safetynet.audit import record_scan
-from safetynet.config import DIRECT_MODE_ENV
+from safetywebbing import api, system
+from safetywebbing.audit import record_scan
+from safetywebbing.config import DIRECT_MODE_ENV
 
 
 @pytest.fixture(autouse=True)
@@ -17,7 +17,7 @@ def _no_real_docker(monkeypatch):
 
 
 def test_docker_missing_is_reported_not_raised():
-    d = system.docker_status("safetynet-agent")
+    d = system.docker_status("safetywebbing-agent")
     assert (d["installed"], d["daemon"], d["image_built"], d["ok"]) == (False, False, False, False)
 
 
@@ -32,17 +32,17 @@ def test_docker_reports_each_layer(monkeypatch):
         return ok if argv[1] == "info" else bad
 
     monkeypatch.setattr(system, "_run", fake_run)
-    d = system.docker_status("safetynet-agent")
+    d = system.docker_status("safetywebbing-agent")
     assert (d["installed"], d["daemon"], d["server_version"]) == (True, True, "27.1")
     assert (d["image_built"], d["ok"]) == (False, False)
-    system.docker_status("safetynet-agent")
+    system.docker_status("safetywebbing-agent")
     assert calls == ["info", "image"]          # second call served from the short cache
 
 
 def test_docker_daemon_down_skips_image_check(monkeypatch):
     monkeypatch.setattr(system.shutil, "which", lambda name: "/usr/bin/docker")
     monkeypatch.setattr(system, "_run", lambda argv: None)  # timeout / OSError
-    d = system.docker_status("safetynet-agent")
+    d = system.docker_status("safetywebbing-agent")
     assert (d["installed"], d["daemon"], d["image_built"]) == (True, False, False)
 
 
@@ -57,7 +57,7 @@ def test_labeler_states(monkeypatch):
     assert "anthropic" in st["note"]
 
     monkeypatch.setattr(system.importlib.util, "find_spec", lambda name: object())
-    monkeypatch.setenv("SAFETYNET_LLM_MODEL", "claude-haiku-5-5")
+    monkeypatch.setenv("SAFETYWEBBING_LLM_MODEL", "claude-haiku-5-5")
     st = system.labeler_status()
     assert (st["effective"], st["model"]) == ("llm", "claude-haiku-5-5")
     assert "sk-secret-value" not in json.dumps(st)       # a bool, never the key

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>SafetyNet — Hệ thống</title>
+<title>SafetyWebbing — Hệ thống</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;750&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
@@ -18,7 +18,7 @@
 <div id="root"></div>
 <script type="text/babel" src="/static/shared.jsx"></script>
 <script type="text/babel">
-document.title = tr("SafetyNet — Hệ thống", "SafetyNet — System");
+document.title = tr("SafetyWebbing — Hệ thống", "SafetyWebbing — System");
 
 function Row({k, children}) {
   return <div className="sysrow"><span className="k">{k}</span><span className="v">{children}</span></div>;
@@ -63,7 +63,7 @@ function DirectCard({d}) {
       {d.agent_cmd && <Row k={tr("Lệnh", "Command")}><span className="mono">{d.agent_cmd}</span></Row>}
       {!d.enabled && <>
         <div className="hint">{tr("Mặc định tắt vì agent chạy toàn quyền trên máy bạn. Chỉ người khởi động server mới bật được (không bật từ giao diện):", "Off by default because the agent runs with full access on your machine. Only whoever starts the server can enable it (not from the UI):")}</div>
-        <code className="cmd">{d.env}=1 uv run uvicorn safetynet.api:app --port 8000</code></>}
+        <code className="cmd">{d.env}=1 uv run uvicorn safetywebbing.api:app --port 8000</code></>}
       {d.enabled && <div className="warnbox" style={{margin: "10px 0 0"}}><span>⚠️</span>
         <div>{tr(<>Chế độ này <b>không có container</b>. Chỉ dùng với target dev của chính bạn.</>, <>This mode has <b>no container</b>. Use it only against your own dev targets.</>)}</div></div>}
     </div>
@@ -216,7 +216,7 @@ function SystemPage() {
         <Audit limit={limit} setLimit={setLimit} />
 
         <div className="hint" style={{textAlign: "center", marginTop: 18}}>
-          SafetyNet v{st.app.version} · Python {st.app.python} · {st.app.platform}</div>
+          SafetyWebbing v{st.app.version} · Python {st.app.python} · {st.app.platform}</div>
       </>}
 
       <footer>{FOOTER}</footer>

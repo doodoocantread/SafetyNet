@@ -3,9 +3,9 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "safetynet-hackingbuddy-agent"
+name = "safetywebbing-hackingbuddy-agent"
 version = "0.1.0"
-description = "SafetyNet wrapper: runs hackingBuddyGPT's web use-case and emits SafetyNet's summary.json + traces."
+description = "SafetyWebbing wrapper: runs hackingBuddyGPT's web use-case and emits SafetyWebbing's summary.json + traces."
 # hackingBuddyGPT requires Python >=3.13.
 requires-python = ">=3.13,<4.0"
 # hackingBuddyGPT is on PyPI. Pinned so agent behaviour does not drift under us;
@@ -15,7 +15,7 @@ dependencies = [
 ]
 
 [project.scripts]
-safetynet-hackingbuddy-agent = "safetynet_hb_agent.cli:main"
+safetywebbing-hackingbuddy-agent = "safetywebbing_hb_agent.cli:main"
 
 [tool.setuptools]
-packages = ["safetynet_hb_agent"]
+packages = ["safetywebbing_hb_agent"]

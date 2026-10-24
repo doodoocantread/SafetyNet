@@ -109,7 +109,7 @@ def system_status(
         "direct": {
             "enabled": direct_on, "env": config.DIRECT_MODE_ENV,
             "agent_found": agent_command is not None,
-            # Only the launcher, not its arguments: SAFETYNET_AGENT_CMD is free-form.
+            # Only the launcher, not its arguments: SAFETYWEBBING_AGENT_CMD is free-form.
             "agent_cmd": agent_command[0] if agent_command else None,
         },
         "labeler": labeler_status(),

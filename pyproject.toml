@@ -3,9 +3,9 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "safetynet"
+name = "safetywebbing"
 version = "0.1.0"
-description = "SafetyNet — turns authorized local scan results into vulnerability reports. The AI summarizes; it does not decide to attack."
+description = "SafetyWebbing — turns authorized local scan results into vulnerability reports. The AI summarizes; it does not decide to attack."
 requires-python = ">=3.12,<4.0"
 # The host app only orchestrates. It does NOT import unified-agent or run the
 # pentest agent in-process — that happens inside the Docker image (agent_image/).
@@ -24,7 +24,7 @@ dev = [
 
 [tool.setuptools]
 package-dir = { "" = "src" }
-packages = ["safetynet", "safetynet.engines"]
+packages = ["safetywebbing", "safetywebbing.engines"]
 
 [tool.ruff]
 target-version = "py312"

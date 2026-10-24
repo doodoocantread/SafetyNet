@@ -1,4 +1,4 @@
-# SafetyNet — Kiến trúc
+# SafetyWebbing — Kiến trúc
 
 > Dự án khoa học cấp trường. Agent AI đóng vai **tổng hợp kết quả scan thành báo cáo**,
 > **không** tự quyết định hay tự viết mã tấn công. Thời lượng: 1 tuần.
@@ -98,9 +98,9 @@ Frontend poll GET /scan/{job_id} để hiện progress (scan live ~1–2 phút).
 - `LiveAgentEngine`: spawn Docker container chạy agent đã chọn (`config.AGENTS`) với target đã
   whitelist + goal template. Mount thư mục `runs/` ra host. **Chọn agent** là lựa chọn mỗi lần quét,
   tách khỏi chế độ chạy; engine chỉ đổi `image` + cách xác thực (`auth`):
-  - `pentestgpt` (`safetynet-agent`, mặc định): `backend="claude"`, mount bản sao tạm của credential
+  - `pentestgpt` (`safetywebbing-agent`, mặc định): `backend="claude"`, mount bản sao tạm của credential
     Claude Code trên host.
-  - `hackingbuddy` (`safetynet-hackingbuddy`): use-case web của hackingBuddyGPT; không mount
+  - `hackingbuddy` (`safetywebbing-hackingbuddy`): use-case web của hackingBuddyGPT; không mount
     credential, thay vào đó chuyển tiếp API key LLM từ môi trường server (litellm). Chỉ chế độ docker.
   Mọi agent ghi **cùng** `summary.json` + `traces/`, nên adapter/labeler/report phía sau không đổi.
 - `ReplayEngine`: đọc một thư mục `runs/<id>/` có sẵn. Dùng cho demo mode và test — **không cần
@@ -139,7 +139,7 @@ Frontend poll GET /scan/{job_id} để hiện progress (scan live ~1–2 phút).
 1. **Docker + Claude Code session auth:** container của `LiveAgentEngine` phải **thấy credentials**
    của Claude Code session (mount file auth read-only vào container, hoặc login trong container).
    Làm sai → container báo `not authenticated` như 3/4 run cũ. `ReplayEngine` không dính vấn đề này.
-2. **`unified-agent` là git dependency, KHÔNG phải PyPI:** `pyproject.toml` của SafetyNet phải copy
+2. **`unified-agent` là git dependency, KHÔNG phải PyPI:** `pyproject.toml` của SafetyWebbing phải copy
    nguyên khối `[tool.uv.sources]` với đúng rev `acff8ee`. `pip install unified-agent==0.3.0` sẽ
    **không** ra đúng package.
 3. **Join traces:** schema `Finding` phụ thuộc vào cấu trúc `traces/`. Đã xác nhận traces chứa
@@ -147,7 +147,7 @@ Frontend poll GET /scan/{job_id} để hiện progress (scan live ~1–2 phút).
 
 ## 8. Vendor từ PentestGPT
 
-Lấy vào SafetyNet:
+Lấy vào SafetyWebbing:
 - `pentestgpt_agent/src/pentestgpt_agent/` — **10 file**: `agents.py`, `audit.py`, `execution.py`,
   `identifiers.py`, `loop.py`, `memory.py`, `plan.py`, `trace.py`, `trial.py`, `__init__.py`.
 - Khai báo `unified-agent` qua git source (như §7.2).
@@ -156,11 +156,11 @@ Lấy vào SafetyNet:
 (CLAUDE.md ghi rõ là *obsolete compatibility copy*).
 
 **License:** vendor code PentestGPT → giữ attribution theo `LICENSE.md` của họ; ghi nguồn trong
-README của SafetyNet.
+README của SafetyWebbing.
 
 ## 9. Lộ trình 7 ngày
 
-- **Ngày 1:** Khởi tạo repo SafetyNet; vendor 10 file + khai báo `unified-agent` git source; dựng
+- **Ngày 1:** Khởi tạo repo SafetyWebbing; vendor 10 file + khai báo `unified-agent` git source; dựng
   `LiveAgentEngine` (Docker) + xử lý mount credentials Claude Code; chạy ra 1 `summary.json` thật
   trên `127.0.0.1:3000`.
 - **Ngày 2:** Backend FastAPI: hard-gate whitelist, `POST /scan` (job async), `GET /scan/{id}`

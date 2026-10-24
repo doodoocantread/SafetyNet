@@ -11,9 +11,9 @@ import time
 
 import pytest
 
-from safetynet.config import ModeNotAllowed, direct_mode_enabled, validate_mode
-from safetynet.engines.base import ScanFailed
-from safetynet.engines.local import (
+from safetywebbing.config import ModeNotAllowed, direct_mode_enabled, validate_mode
+from safetywebbing.engines.base import ScanFailed
+from safetywebbing.engines.local import (
     AGENT_CMD_ENV,
     LocalAgentEngine,
     agent_env,
@@ -24,12 +24,12 @@ from safetynet.engines.local import (
 
 
 def test_docker_mode_always_allowed(monkeypatch):
-    monkeypatch.delenv("SAFETYNET_ALLOW_DIRECT", raising=False)
+    monkeypatch.delenv("SAFETYWEBBING_ALLOW_DIRECT", raising=False)
     assert validate_mode("docker") == "docker"
 
 
 def test_direct_mode_blocked_by_default(monkeypatch):
-    monkeypatch.delenv("SAFETYNET_ALLOW_DIRECT", raising=False)
+    monkeypatch.delenv("SAFETYWEBBING_ALLOW_DIRECT", raising=False)
     assert not direct_mode_enabled()
     with pytest.raises(ModeNotAllowed):
         validate_mode("direct")
@@ -37,20 +37,20 @@ def test_direct_mode_blocked_by_default(monkeypatch):
 
 @pytest.mark.parametrize("value", ["0", "", "no", "false"])
 def test_direct_mode_blocked_for_falsey_values(monkeypatch, value):
-    monkeypatch.setenv("SAFETYNET_ALLOW_DIRECT", value)
+    monkeypatch.setenv("SAFETYWEBBING_ALLOW_DIRECT", value)
     with pytest.raises(ModeNotAllowed):
         validate_mode("direct")
 
 
 @pytest.mark.parametrize("value", ["1", "true", "YES"])
 def test_direct_mode_allowed_when_opted_in(monkeypatch, value):
-    monkeypatch.setenv("SAFETYNET_ALLOW_DIRECT", value)
+    monkeypatch.setenv("SAFETYWEBBING_ALLOW_DIRECT", value)
     assert validate_mode("direct") == "direct"
 
 
 @pytest.mark.parametrize("mode", ["", "DIRECT", "host", "docker; rm -rf /"])
 def test_unknown_mode_rejected(monkeypatch, mode):
-    monkeypatch.setenv("SAFETYNET_ALLOW_DIRECT", "1")
+    monkeypatch.setenv("SAFETYWEBBING_ALLOW_DIRECT", "1")
     with pytest.raises(ModeNotAllowed):
         validate_mode(mode)
 
@@ -72,7 +72,7 @@ def test_build_command_keeps_loopback_target(tmp_path):
 
 def test_build_command_without_agent_raises(tmp_path, monkeypatch):
     monkeypatch.delenv(AGENT_CMD_ENV, raising=False)
-    monkeypatch.setattr("safetynet.engines.local.shutil.which", lambda _: None)
+    monkeypatch.setattr("safetywebbing.engines.local.shutil.which", lambda _: None)
     eng = LocalAgentEngine(runs_root=tmp_path / "runs", search_dirs=(tmp_path,))
     assert eng.command() is None
     with pytest.raises(ScanFailed, match="agent CLI not found"):
@@ -163,21 +163,21 @@ async def test_timeout_kills_agent_and_raises(tmp_path):
 
 
 def test_modes_endpoint_reports_direct_unavailable_by_default(monkeypatch):
-    from safetynet import api
+    from safetywebbing import api
 
-    monkeypatch.delenv("SAFETYNET_ALLOW_DIRECT", raising=False)
+    monkeypatch.delenv("SAFETYWEBBING_ALLOW_DIRECT", raising=False)
     by_key = {m["key"]: m for m in api.modes()}
     assert by_key["docker"]["available"] is True
     assert by_key["direct"]["available"] is False
-    assert "SAFETYNET_ALLOW_DIRECT" in by_key["direct"]["reason"]
+    assert "SAFETYWEBBING_ALLOW_DIRECT" in by_key["direct"]["reason"]
 
 
 async def test_start_scan_rejects_direct_when_not_opted_in(monkeypatch):
     from fastapi import HTTPException
 
-    from safetynet import api
+    from safetywebbing import api
 
-    monkeypatch.delenv("SAFETYNET_ALLOW_DIRECT", raising=False)
+    monkeypatch.delenv("SAFETYWEBBING_ALLOW_DIRECT", raising=False)
     with pytest.raises(HTTPException) as exc:
         await api.start_scan(
             api.ScanRequest(target="http://127.0.0.1:3000", scan_type="sqli", mode="direct")
@@ -190,9 +190,9 @@ async def test_direct_scan_is_audited_with_mode(tmp_path, monkeypatch):
     """Whitelist still applies in direct mode, and the audit log records the mode."""
     from fastapi import HTTPException
 
-    from safetynet import api
+    from safetywebbing import api
 
-    monkeypatch.setenv("SAFETYNET_ALLOW_DIRECT", "1")
+    monkeypatch.setenv("SAFETYWEBBING_ALLOW_DIRECT", "1")
     monkeypatch.setattr(api, "_LIVE_RUNS", tmp_path / "runs")
     monkeypatch.setattr(api.local_engine, "agent_cmd", ["pentestgpt-agent"])
 
@@ -229,14 +229,14 @@ async def test_direct_scan_is_audited_with_mode(tmp_path, monkeypatch):
 
 @pytest.mark.parametrize("model", ["claude-sonnet-5-5", "sonnet", "claude-opus-5-5[1m]", "a.b_c:1-2"])
 def test_valid_model_ids_pass(model):
-    from safetynet.config import validate_model
+    from safetywebbing.config import validate_model
 
     assert validate_model(model) == model
 
 
 @pytest.mark.parametrize("model", ["--dangerously-x", "-m", "a b", "a;rm", "../x", "a\nb", "x" * 65])
 def test_unsafe_model_ids_blocked(model):
-    from safetynet.config import InvalidModel, validate_model
+    from safetywebbing.config import InvalidModel, validate_model
 
     with pytest.raises(InvalidModel):
         validate_model(model)
@@ -244,7 +244,7 @@ def test_unsafe_model_ids_blocked(model):
 
 @pytest.mark.parametrize("empty", [None, "", "   "])
 def test_empty_model_means_default(empty):
-    from safetynet.config import validate_model
+    from safetywebbing.config import validate_model
 
     assert validate_model(empty) is None
 
@@ -263,9 +263,9 @@ async def test_requested_model_reaches_engine_without_leaking(tmp_path, monkeypa
 
     from fastapi import HTTPException
 
-    from safetynet import api
+    from safetywebbing import api
 
-    monkeypatch.setenv("SAFETYNET_ALLOW_DIRECT", "1")
+    monkeypatch.setenv("SAFETYWEBBING_ALLOW_DIRECT", "1")
     monkeypatch.setattr(api, "_LIVE_RUNS", tmp_path / "runs")
     monkeypatch.setattr(api.local_engine, "agent_cmd", ["agent"])
     seen = []
@@ -294,21 +294,21 @@ async def test_requested_model_reaches_engine_without_leaking(tmp_path, monkeypa
 
 
 def test_default_timeout_when_unset():
-    from safetynet.config import validate_timeout
+    from safetywebbing.config import validate_timeout
 
     assert validate_timeout(None) == 600.0
 
 
 @pytest.mark.parametrize("value", [30, 30.0, 600, 3600, "120"])
 def test_valid_timeouts_pass(value):
-    from safetynet.config import validate_timeout
+    from safetywebbing.config import validate_timeout
 
     assert validate_timeout(value) == float(value)
 
 
 @pytest.mark.parametrize("value", [29, 3601, 0, -5, float("inf"), float("nan"), "not-a-number"])
 def test_unsafe_timeouts_blocked(value):
-    from safetynet.config import InvalidTimeout, validate_timeout
+    from safetywebbing.config import InvalidTimeout, validate_timeout
 
     with pytest.raises(InvalidTimeout):
         validate_timeout(value)
@@ -317,9 +317,9 @@ def test_unsafe_timeouts_blocked(value):
 async def test_requested_timeout_reaches_engine(tmp_path, monkeypatch):
     import asyncio
 
-    from safetynet import api
+    from safetywebbing import api
 
-    monkeypatch.setenv("SAFETYNET_ALLOW_DIRECT", "1")
+    monkeypatch.setenv("SAFETYWEBBING_ALLOW_DIRECT", "1")
     monkeypatch.setattr(api, "_LIVE_RUNS", tmp_path / "runs")
     monkeypatch.setattr(api.local_engine, "agent_cmd", ["agent"])
     seen = []
@@ -341,7 +341,7 @@ async def test_requested_timeout_reaches_engine(tmp_path, monkeypatch):
 async def test_start_scan_rejects_out_of_range_timeout(monkeypatch):
     from fastapi import HTTPException
 
-    from safetynet import api
+    from safetywebbing import api
 
     with pytest.raises(HTTPException) as exc:
         await api.start_scan(api.ScanRequest(

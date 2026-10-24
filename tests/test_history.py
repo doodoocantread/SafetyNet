@@ -4,10 +4,10 @@ import json
 
 import pytest
 
-from safetynet import api
-from safetynet.audit import record_scan
-from safetynet.config import InvalidRunId
-from safetynet.history import (
+from safetywebbing import api
+from safetywebbing.audit import record_scan
+from safetywebbing.config import InvalidRunId
+from safetywebbing.history import (
     get_history_item,
     list_history,
     load_cached_report,

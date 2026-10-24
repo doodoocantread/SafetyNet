@@ -11,8 +11,8 @@ import asyncio
 import pytest
 from fastapi import HTTPException
 
-from safetynet import api
-from safetynet.engines.local import LocalAgentEngine
+from safetywebbing import api
+from safetywebbing.engines.local import LocalAgentEngine
 
 
 async def test_cancel_unknown_job_404():
@@ -31,7 +31,7 @@ async def test_cancel_already_finished_job_is_a_noop():
 
 
 async def test_cancel_running_job_kills_the_engine_and_settles_as_cancelled(tmp_path, monkeypatch):
-    monkeypatch.setenv("SAFETYNET_ALLOW_DIRECT", "1")
+    monkeypatch.setenv("SAFETYWEBBING_ALLOW_DIRECT", "1")
     monkeypatch.setattr(api, "_LIVE_RUNS", tmp_path / "runs")
     monkeypatch.setattr(api.local_engine, "agent_cmd", ["agent"])
 
@@ -84,7 +84,7 @@ async def test_cancel_running_job_kills_the_engine_and_settles_as_cancelled(tmp_
 async def test_cancel_while_still_queued_never_runs_the_engine(tmp_path, monkeypatch):
     """Cancelling before the concurrency semaphore is even acquired must not
     leave the job stuck — and must not let the engine start afterwards."""
-    monkeypatch.setenv("SAFETYNET_ALLOW_DIRECT", "1")
+    monkeypatch.setenv("SAFETYWEBBING_ALLOW_DIRECT", "1")
     monkeypatch.setattr(api, "_LIVE_RUNS", tmp_path / "runs")
     monkeypatch.setattr(api.local_engine, "agent_cmd", ["agent"])
 

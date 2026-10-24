@@ -10,7 +10,7 @@ import json
 
 import pytest
 
-from safetynet.config import (
+from safetywebbing.config import (
     DEFAULT_AGENT,
     LLM_KEY_ENV,
     LLM_PROVIDERS,
@@ -22,8 +22,8 @@ from safetynet.config import (
     validate_llm_provider,
     validate_model,
 )
-from safetynet.engines.base import ScanFailed
-from safetynet.engines.live import LiveAgentEngine
+from safetywebbing.engines.base import ScanFailed
+from safetywebbing.engines.live import LiveAgentEngine
 
 # --- config: which agents exist ----------------------------------------------
 
@@ -46,10 +46,10 @@ def test_unknown_agents_rejected(key):
 
 def test_agent_records_carry_image_and_auth():
     pg = agent_for("pentestgpt")
-    assert pg.image == "safetynet-agent" and pg.auth == "claude_oauth"
+    assert pg.image == "safetywebbing-agent" and pg.auth == "claude_oauth"
     assert "direct" in pg.modes and "docker" in pg.modes
     hb = agent_for("hackingbuddy")
-    assert hb.image == "safetynet-hackingbuddy" and hb.auth == "llm_api_key"
+    assert hb.image == "safetywebbing-hackingbuddy" and hb.auth == "llm_api_key"
     assert hb.modes == ("docker",)  # hackingBuddy is container-only
 
 
@@ -58,7 +58,7 @@ def test_agent_records_carry_image_and_auth():
 
 def test_build_command_hackingbuddy_forwards_key_without_creds(tmp_path):
     eng = LiveAgentEngine(
-        runs_root=tmp_path / "runs", image="safetynet-hackingbuddy",
+        runs_root=tmp_path / "runs", image="safetywebbing-hackingbuddy",
         auth="llm_api_key", claude_creds_dir=tmp_path / "nope",
     )
     cmd = eng.build_command(
@@ -66,7 +66,7 @@ def test_build_command_hackingbuddy_forwards_key_without_creds(tmp_path):
         env={"ANTHROPIC_API_KEY": "sk-secret", "PATH": "/bin"},
     )
     joined = " ".join(cmd)
-    assert "safetynet-hackingbuddy" in cmd
+    assert "safetywebbing-hackingbuddy" in cmd
     # key forwarded by NAME only — the value never appears on the argv
     assert cmd[cmd.index("-e") + 1] == "ANTHROPIC_API_KEY"
     assert "sk-secret" not in joined
@@ -150,7 +150,7 @@ def test_container_env_none_for_oauth_agent():
 
 
 def test_agents_endpoint_flags_key_requirement(monkeypatch):
-    from safetynet import api
+    from safetywebbing import api
 
     for k in LiveAgentEngine().llm_key_env:
         monkeypatch.delenv(k, raising=False)
@@ -165,7 +165,7 @@ def test_agents_endpoint_flags_key_requirement(monkeypatch):
 
 
 def test_agents_endpoint_reports_server_key(monkeypatch):
-    from safetynet import api
+    from safetywebbing import api
 
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
     by_key = {a["key"]: a for a in api.agents()}
@@ -173,7 +173,7 @@ def test_agents_endpoint_reports_server_key(monkeypatch):
 
 
 def test_llm_providers_endpoint_lists_gemini(monkeypatch):
-    from safetynet import api
+    from safetywebbing import api
 
     for k in LLM_KEY_ENV:
         monkeypatch.delenv(k, raising=False)
@@ -190,7 +190,7 @@ def test_llm_providers_endpoint_lists_gemini(monkeypatch):
 async def test_start_scan_rejects_unknown_agent():
     from fastapi import HTTPException
 
-    from safetynet import api
+    from safetywebbing import api
 
     with pytest.raises(HTTPException) as exc:
         await api.start_scan(api.ScanRequest(
@@ -201,9 +201,9 @@ async def test_start_scan_rejects_unknown_agent():
 async def test_start_scan_rejects_hackingbuddy_in_direct_mode(monkeypatch):
     from fastapi import HTTPException
 
-    from safetynet import api
+    from safetywebbing import api
 
-    monkeypatch.setenv("SAFETYNET_ALLOW_DIRECT", "1")
+    monkeypatch.setenv("SAFETYWEBBING_ALLOW_DIRECT", "1")
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
     with pytest.raises(HTTPException) as exc:
         await api.start_scan(api.ScanRequest(
@@ -215,7 +215,7 @@ async def test_start_scan_rejects_hackingbuddy_in_direct_mode(monkeypatch):
 async def test_start_scan_rejects_hackingbuddy_without_llm_key(monkeypatch):
     from fastapi import HTTPException
 
-    from safetynet import api
+    from safetywebbing import api
 
     for k in LiveAgentEngine().llm_key_env:
         monkeypatch.delenv(k, raising=False)
@@ -227,7 +227,7 @@ async def test_start_scan_rejects_hackingbuddy_without_llm_key(monkeypatch):
 
 
 async def test_hackingbuddy_scan_routes_image_and_audits_agent(tmp_path, monkeypatch):
-    from safetynet import api
+    from safetywebbing import api
 
     monkeypatch.setattr(api, "_LIVE_RUNS", tmp_path / "runs")
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
@@ -245,9 +245,9 @@ async def test_hackingbuddy_scan_routes_image_and_audits_agent(tmp_path, monkeyp
 
     await asyncio.sleep(0.2)  # let the background job log scan_error
     # The per-scan engine used hackingBuddy's image + auth…
-    assert seen == {"image": "safetynet-hackingbuddy", "auth": "llm_api_key"}
+    assert seen == {"image": "safetywebbing-hackingbuddy", "auth": "llm_api_key"}
     # …the shared engine is untouched…
-    assert api.live_engine.image == "safetynet-agent"
+    assert api.live_engine.image == "safetywebbing-agent"
     assert api.live_engine.auth == "claude_oauth"
     # …and every audit line records the agent.
     events = [
@@ -262,7 +262,7 @@ async def test_hackingbuddy_scan_routes_image_and_audits_agent(tmp_path, monkeyp
 async def test_hackingbuddy_scan_routes_per_scan_key(tmp_path, monkeypatch):
     """A UI-entered key + provider reach the engine as llm_api_key/llm_env_name,
     are NOT written to the audit log, and do not need any server env key."""
-    from safetynet import api
+    from safetywebbing import api
 
     monkeypatch.setattr(api, "_LIVE_RUNS", tmp_path / "runs")
     for k in LLM_KEY_ENV:
@@ -290,7 +290,7 @@ async def test_hackingbuddy_scan_routes_per_scan_key(tmp_path, monkeypatch):
 async def test_hackingbuddy_provider_without_any_key_rejected(monkeypatch):
     from fastapi import HTTPException
 
-    from safetynet import api
+    from safetywebbing import api
 
     for k in LLM_KEY_ENV:
         monkeypatch.delenv(k, raising=False)
@@ -303,7 +303,7 @@ async def test_hackingbuddy_provider_without_any_key_rejected(monkeypatch):
 
 
 async def test_hackingbuddy_accepts_litellm_model_slash(tmp_path, monkeypatch):
-    from safetynet import api
+    from safetywebbing import api
 
     monkeypatch.setattr(api, "_LIVE_RUNS", tmp_path / "runs")
 
@@ -323,7 +323,7 @@ async def test_hackingbuddy_accepts_litellm_model_slash(tmp_path, monkeypatch):
 async def test_pentestgpt_rejects_slash_model(monkeypatch):
     from fastapi import HTTPException
 
-    from safetynet import api
+    from safetywebbing import api
 
     with pytest.raises(HTTPException) as exc:
         await api.start_scan(api.ScanRequest(
@@ -332,7 +332,7 @@ async def test_pentestgpt_rejects_slash_model(monkeypatch):
 
 
 async def test_default_scan_still_uses_pentestgpt(tmp_path, monkeypatch):
-    from safetynet import api
+    from safetywebbing import api
 
     monkeypatch.setattr(api, "_LIVE_RUNS", tmp_path / "runs")
     seen = {}
@@ -346,5 +346,5 @@ async def test_default_scan_still_uses_pentestgpt(tmp_path, monkeypatch):
     out = await api.start_scan(api.ScanRequest(target="http://127.0.0.1:3000", scan_type="sqli"))
     assert out["agent"] == "pentestgpt"
     await asyncio.sleep(0.2)
-    assert seen == {"image": "safetynet-agent", "auth": "claude_oauth"}
+    assert seen == {"image": "safetywebbing-agent", "auth": "claude_oauth"}
     api._jobs.clear()

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>SafetyNet — Phương pháp &amp; Đóng góp</title>
+<title>SafetyWebbing — Phương pháp &amp; Đóng góp</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;750&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
@@ -15,7 +15,7 @@
 <body>
 
 <header class="appbar">
-  <a class="brand" href="/"><span class="logo">🛡</span> SafetyNet <span class="ver">v0.1</span></a>
+  <a class="brand" href="/"><span class="logo">🛡</span> SafetyWebbing <span class="ver">v0.1</span></a>
   <nav class="mainnav" aria-label="Menu chính">
     <a href="/" data-en="Overview">Tổng quan</a>
     <a href="/scan" data-en="New scan">Quét mới</a>
@@ -45,14 +45,14 @@
   <div class="hero2">
     <p class="eyebrow" data-en="Science project · top-up on PentestGPT">Dự án khoa học · top-up trên PentestGPT</p>
     <h1 data-en="A powerful pentest agent, <em>inside a safety net.</em>">Một agent pentest mạnh, <em>đặt trong lưới an toàn.</em></h1>
-    <p data-en="<a href=&quot;https://github.com/greydgl/pentestgpt&quot; target=&quot;_blank&quot; rel=&quot;noopener&quot;>PentestGPT</a> gives you an LLM agent that scans for vulnerabilities on its own. SafetyNet <b>does not rewrite that agent</b> — it wraps it in a layer of <b>code-enforced limits</b> (local-only scanning, fixed scope, runs in Docker) and a layer of <b>traceable reporting</b> (every conclusion points back to the exact request/response that happened).">
+    <p data-en="<a href=&quot;https://github.com/greydgl/pentestgpt&quot; target=&quot;_blank&quot; rel=&quot;noopener&quot;>PentestGPT</a> gives you an LLM agent that scans for vulnerabilities on its own. SafetyWebbing <b>does not rewrite that agent</b> — it wraps it in a layer of <b>code-enforced limits</b> (local-only scanning, fixed scope, runs in Docker) and a layer of <b>traceable reporting</b> (every conclusion points back to the exact request/response that happened).">
       <a href="https://github.com/greydgl/pentestgpt" target="_blank" rel="noopener">PentestGPT</a> cho một agent LLM
-      tự quét lỗ hổng. SafetyNet <b>không viết lại agent đó</b> — nó bọc quanh agent một lớp
+      tự quét lỗ hổng. SafetyWebbing <b>không viết lại agent đó</b> — nó bọc quanh agent một lớp
       <b>giới hạn bằng code</b> (chỉ quét local, scope cố định, chạy trong Docker) và một lớp
       <b>báo cáo truy vết được</b> (mỗi kết luận quy về đúng request/response đã xảy ra).
     </p>
 
-    <div class="formula" role="img" aria-label="SafetyNet bằng PentestGPT cộng lớp an toàn cộng lớp báo cáo">
+    <div class="formula" role="img" aria-label="SafetyWebbing bằng PentestGPT cộng lớp an toàn cộng lớp báo cáo">
       <div class="box"><b>PentestGPT agent</b><span data-en="<span class=&quot;tag vendor&quot;>VENDOR</span>Supervisor + Executor, 10 vendored files"><span class="tag vendor">VENDOR</span>Supervisor + Executor, vendor 10 file</span></div>
       <div class="op">+</div>
       <div class="box up"><b data-en="Safety net">Lưới an toàn</b><span data-en="<span class=&quot;tag new&quot;>NEW</span>whitelist · fixed scope · Docker · audit log"><span class="tag new">MỚI</span>whitelist · scope cố định · Docker · audit log</span></div>
@@ -61,7 +61,7 @@
     </div>
 
     <div class="stats kpis" aria-label="Số liệu codebase">
-      <div class="kpi"><div class="n" data-en="~1,210">~1.210</div><div class="l" data-en="lines of host app (SafetyNet)">dòng host app (SafetyNet)</div></div>
+      <div class="kpi"><div class="n" data-en="~1,210">~1.210</div><div class="l" data-en="lines of host app (SafetyWebbing)">dòng host app (SafetyWebbing)</div></div>
       <div class="kpi"><div class="n" data-en="~3,960">~3.960</div><div class="l" data-en="lines of vendored agent">dòng agent vendor</div></div>
       <div class="kpi"><div class="n">5</div><div class="l" data-en="safety invariants">bất biến an toàn</div></div>
       <div class="kpi"><div class="n">2</div><div class="l">engine: live · replay</div></div>
@@ -71,15 +71,15 @@
   <!-- ============ TOP-UP ============ -->
   <section id="topup">
     <p class="eyebrow" data-en="01 · What’s improved">01 · Điểm cải tiến</p>
-    <h2 class="sec" data-en="What PentestGPT has, what SafetyNet adds">PentestGPT có gì, SafetyNet thêm gì</h2>
-    <p class="lede" data-en="PentestGPT is a command-line tool that solves CTFs / pentests automatically. SafetyNet keeps that “brain” and adds what it takes to turn it into a tool that is <i>safe to demo</i> and <i>produces readable reports</i>.">
-      PentestGPT là công cụ chạy dòng lệnh để giải CTF / pentest tự động. SafetyNet giữ phần “bộ não” đó và
+    <h2 class="sec" data-en="What PentestGPT has, what SafetyWebbing adds">PentestGPT có gì, SafetyWebbing thêm gì</h2>
+    <p class="lede" data-en="PentestGPT is a command-line tool that solves CTFs / pentests automatically. SafetyWebbing keeps that “brain” and adds what it takes to turn it into a tool that is <i>safe to demo</i> and <i>produces readable reports</i>.">
+      PentestGPT là công cụ chạy dòng lệnh để giải CTF / pentest tự động. SafetyWebbing giữ phần “bộ não” đó và
       thêm những thứ cần có để biến nó thành một công cụ <i>an toàn để trình diễn</i> và <i>cho ra báo cáo đọc được</i>.
     </p>
 
     <div class="tablewrap">
       <table class="cmp">
-        <thead><tr><th data-en="Aspect">Khía cạnh</th><th>PentestGPT (upstream)</th><th>SafetyNet (top-up)</th></tr></thead>
+        <thead><tr><th data-en="Aspect">Khía cạnh</th><th>PentestGPT (upstream)</th><th>SafetyWebbing (top-up)</th></tr></thead>
         <tbody>
           <tr><th data-en="Purpose">Mục đích</th>
             <td data-en="Automatically solves CTFs / pentests.">Tự động giải CTF / pentest.</td>
@@ -117,7 +117,7 @@
         </tbody>
       </table>
     </div>
-    <p class="note" data-en="The upstream column is based on PentestGPT’s public README and may have changed in newer versions. The “NEW” parts are written by SafetyNet (the <code>src/safetynet/</code> and <code>web/</code> folders); the agent in <code>agent_image/</code> is vendored code.">Cột upstream dựa trên README công khai của PentestGPT và có thể đã khác ở bản mới hơn. Phần “MỚI” là các thành phần do SafetyNet viết (thư mục <code>src/safetynet/</code>, <code>web/</code>); agent trong <code>agent_image/</code> là mã vendor.</p>
+    <p class="note" data-en="The upstream column is based on PentestGPT’s public README and may have changed in newer versions. The “NEW” parts are written by SafetyWebbing (the <code>src/safetywebbing/</code> and <code>web/</code> folders); the agent in <code>agent_image/</code> is vendored code.">Cột upstream dựa trên README công khai của PentestGPT và có thể đã khác ở bản mới hơn. Phần “MỚI” là các thành phần do SafetyWebbing viết (thư mục <code>src/safetywebbing/</code>, <code>web/</code>); agent trong <code>agent_image/</code> là mã vendor.</p>
   </section>
 
   <!-- ============ KIẾN TRÚC ============ -->
@@ -130,7 +130,7 @@
     </p>
     <div class="worlds">
       <div class="world host">
-        <h3>Host app <span class="mono" style="font-size:12px;color:var(--fg-faint)">src/safetynet</span></h3>
+        <h3>Host app <span class="mono" style="font-size:12px;color:var(--fg-faint)">src/safetywebbing</span></h3>
         <div class="sub" data-en="FastAPI · your machine · <span class=&quot;tag new&quot;>NEW</span>">FastAPI · máy của bạn · <span class="tag new">MỚI</span></div>
         <ul>
           <li data-en="Validates the URL, maps the scan type → a fixed goal">Kiểm tra URL, ánh xạ loại scan → goal cố định</li>
@@ -169,8 +169,8 @@
   <section id="agent">
     <p class="eyebrow" data-en="04 · Inside the agent">04 · Bên trong agent</p>
     <h2 class="sec" data-en="The LLM only proposes — deterministic code decides">LLM chỉ đề xuất — code tất định quyết định</h2>
-    <p class="lede" data-en="This mechanism is inherited from PentestGPT. Understanding it shows why SafetyNet can trust the data the agent returns: no statement from the LLM touches state without being checked first.">
-      Đây là cơ chế kế thừa từ PentestGPT. Hiểu nó giúp thấy vì sao SafetyNet tin được dữ liệu mà agent trả về:
+    <p class="lede" data-en="This mechanism is inherited from PentestGPT. Understanding it shows why SafetyWebbing can trust the data the agent returns: no statement from the LLM touches state without being checked first.">
+      Đây là cơ chế kế thừa từ PentestGPT. Hiểu nó giúp thấy vì sao SafetyWebbing tin được dữ liệu mà agent trả về:
       không câu nào của LLM chạm vào trạng thái mà chưa qua kiểm tra.
     </p>
 
@@ -305,10 +305,10 @@
     <h2 class="sec" data-en="What is not finished">Những gì chưa hoàn thiện</h2>
     <p class="lede" data-en="Listing weaknesses plainly is part of the scientific method. These are the issues found while reviewing the code, and how to fix them.">Liệt kê rõ điểm yếu cũng là một phần của phương pháp khoa học. Đây là các vấn đề đã tìm thấy khi rà code, và hướng sửa.</p>
     <div class="lim">
-      <div class="limcard" style="border-left-color:var(--crit)" data-en="<b>A real run in direct mode confirmed the risk that was warned about</b>Ran 3 real models (2026-10-15, <code>mode=direct</code>): <code>claude-opus-5-5</code> was blocked by Anthropic’s own safety filter; <code>claude-sonnet-5-5</code>, finding a target with no API, read the <code>src/safetynet/</code> source on its own and probed SafetyNet’s own API on port 8000 (blocked by <code>validate_target</code> so no real harm, but it proves there is no boundary); <code>claude-haiku-5-5</code> scanned the real target correctly, found the <code>category</code> parameter and a boolean-based SQLi test came back clean — but the <i>vendor itself</i> failed it because its 2054-character summary exceeded the hard 2000-character limit (<code>execution.py:309</code>). Details: README section “Kết quả thử nghiệm model” (model test results)."><b>Thử thật ở chế độ direct xác nhận đúng rủi ro đã cảnh báo</b>
+      <div class="limcard" style="border-left-color:var(--crit)" data-en="<b>A real run in direct mode confirmed the risk that was warned about</b>Ran 3 real models (2026-10-15, <code>mode=direct</code>): <code>claude-opus-5-5</code> was blocked by Anthropic’s own safety filter; <code>claude-sonnet-5-5</code>, finding a target with no API, read the <code>src/safetywebbing/</code> source on its own and probed SafetyWebbing’s own API on port 8000 (blocked by <code>validate_target</code> so no real harm, but it proves there is no boundary); <code>claude-haiku-5-5</code> scanned the real target correctly, found the <code>category</code> parameter and a boolean-based SQLi test came back clean — but the <i>vendor itself</i> failed it because its 2054-character summary exceeded the hard 2000-character limit (<code>execution.py:309</code>). Details: README section “Kết quả thử nghiệm model” (model test results)."><b>Thử thật ở chế độ direct xác nhận đúng rủi ro đã cảnh báo</b>
         Chạy 3 model thật (2026-10-15, <code>mode=direct</code>): <code>claude-opus-5-5</code> bị chính
         bộ lọc an toàn của Anthropic chặn; <code>claude-sonnet-5-5</code> khi gặp target không có API
-        đã tự ý đọc mã nguồn <code>src/safetynet/</code> và dò chính API SafetyNet ở cổng 8000 (bị
+        đã tự ý đọc mã nguồn <code>src/safetywebbing/</code> và dò chính API SafetyWebbing ở cổng 8000 (bị
         <code>validate_target</code> chặn nên không gây hậu quả thật, nhưng chứng minh không có ranh
         giới); <code>claude-haiku-5-5</code> quét đúng target thật, tìm được tham số <code>category</code>
         và test SQLi boolean-based cho kết quả sạch — nhưng bị <i>chính vendor</i> đánh fail vì tóm tắt
@@ -330,8 +330,8 @@
   </section>
 
   <footer class="pgfoot">
-    <div class="hint" style="text-align:center" data-en="SafetyNet · science project · vendored agent from <a href=&quot;https://github.com/greydgl/pentestgpt&quot; target=&quot;_blank&quot; rel=&quot;noopener&quot;>PentestGPT</a> (MIT) ·
-      <a href=&quot;/scan&quot;>back to Report Studio</a>">SafetyNet · dự án khoa học · agent vendor từ
+    <div class="hint" style="text-align:center" data-en="SafetyWebbing · science project · vendored agent from <a href=&quot;https://github.com/greydgl/pentestgpt&quot; target=&quot;_blank&quot; rel=&quot;noopener&quot;>PentestGPT</a> (MIT) ·
+      <a href=&quot;/scan&quot;>back to Report Studio</a>">SafetyWebbing · dự án khoa học · agent vendor từ
       <a href="https://github.com/greydgl/pentestgpt" target="_blank" rel="noopener">PentestGPT</a> (MIT) ·
       <a href="/scan">quay lại Report Studio</a></div>
   </footer>
@@ -346,11 +346,11 @@ try { var _l = localStorage.getItem("sn-lang"); if (_l === "en" || _l === "vi") 
 function tr(vi, en) { return LANG === "en" ? en : vi; }
 document.documentElement.lang = LANG;
 if (LANG === "en") {
-  document.title = "SafetyNet — Method & Contributions";
+  document.title = "SafetyWebbing — Method & Contributions";
   // Static prose: every element carrying data-en has its Vietnamese innerHTML swapped for the English one.
   Array.prototype.forEach.call(document.querySelectorAll("[data-en]"), function (n) { n.innerHTML = n.getAttribute("data-en"); });
   [["nav.mainnav", "aria-label", "Main menu"], ["nav.toc", "aria-label", "Page contents"], ["#theme", "title", "Toggle theme"],
-   ["#theme", "aria-label", "Toggle theme"], [".formula", "aria-label", "SafetyNet equals PentestGPT plus a safety layer plus a reporting layer"],
+   ["#theme", "aria-label", "Toggle theme"], [".formula", "aria-label", "SafetyWebbing equals PentestGPT plus a safety layer plus a reporting layer"],
    [".stats", "aria-label", "Codebase figures"], ["#pipe", "aria-label", "Pipeline steps"], [".cycle", "aria-label", "Loop"],
    ["#join-tabs", "aria-label", "Choose an observation"], ["#lab-tabs", "aria-label", "Choose a labeler"]
   ].forEach(function (a) { var n = document.querySelector(a[0]); if (n) n.setAttribute(a[1], a[2]); });
@@ -406,7 +406,7 @@ var STEPS = [
   { t: "Engine", w: "engines/",
     h: "Chọn cách chạy: Docker, trực tiếp, hoặc replay",
     p: ["Cả ba engine tuân theo cùng một Protocol, trả về RunResult(summary, traces_dir).",
-        "LiveAgentEngine (mode docker, mặc định) copy credentials tạm, đổi 127.0.0.1 thành host.docker.internal, chạy docker run rồi xoá credentials. LocalAgentEngine (mode direct) chạy thẳng CLI agent trên máy, không có container — chỉ bật được khi server đặt SAFETYNET_ALLOW_DIRECT=1. ReplayEngine chỉ đọc run đã lưu."],
+        "LiveAgentEngine (mode docker, mặc định) copy credentials tạm, đổi 127.0.0.1 thành host.docker.internal, chạy docker run rồi xoá credentials. LocalAgentEngine (mode direct) chạy thẳng CLI agent trên máy, không có container — chỉ bật được khi server đặt SAFETYWEBBING_ALLOW_DIRECT=1. ReplayEngine chỉ đọc run đã lưu."],
     files: [["engines/base.py", "RunResult · Engine · load_run_result"], ["engines/live.py", "build_command · _prepare_creds · run"], ["engines/local.py", "LocalAgentEngine · kill cả cây tiến trình khi timeout"], ["engines/replay.py", "list_runs · load"]] },
   { t: "Agent", w: "Docker container",
     h: "Supervisor ↔ Executor quét trong container",
@@ -440,7 +440,7 @@ if (LANG === "en") {
           "Then the scan_requested event is written to audit.log, and only then is the job created."] },
     { t: "Engine", h: "Pick how to run: Docker, direct, or replay",
       p: ["All three engines follow the same Protocol and return RunResult(summary, traces_dir).",
-          "LiveAgentEngine (docker mode, the default) copies temporary credentials, rewrites 127.0.0.1 to host.docker.internal, runs docker run, then deletes the credentials. LocalAgentEngine (direct mode) runs the agent CLI straight on the machine with no container — it can only be enabled when the server sets SAFETYNET_ALLOW_DIRECT=1. ReplayEngine just reads a saved run."],
+          "LiveAgentEngine (docker mode, the default) copies temporary credentials, rewrites 127.0.0.1 to host.docker.internal, runs docker run, then deletes the credentials. LocalAgentEngine (direct mode) runs the agent CLI straight on the machine with no container — it can only be enabled when the server sets SAFETYWEBBING_ALLOW_DIRECT=1. ReplayEngine just reads a saved run."],
       files: [["engines/base.py", "RunResult · Engine · load_run_result"], ["engines/live.py", "build_command · _prepare_creds · run"], ["engines/local.py", "LocalAgentEngine · kills the whole process tree on timeout"], ["engines/replay.py", "list_runs · load"]] },
     { t: "Agent", h: "Supervisor ↔ Executor scan inside the container",
       p: ["A deterministic loop, one task at a time. At most 20 decisions (--max-decisions) and 600 seconds.",
@@ -556,7 +556,7 @@ var INVARIANTS = [
     at: "config.validate_target ← api.py:158", test: "test_local_targets_allowed · test_remote_targets_blocked", cov: "ok", covT: "ĐÃ TEST" },
   { n: "2", t: "Scope cố định", d: "Loại scan → goal template trong code, không có văn bản tự do.",
     at: "config.SCAN_TYPES / goal_for ← api.py:162", test: "test_goal_templates_are_fixed", cov: "ok", covT: "ĐÃ TEST" },
-  { n: "3", t: "Cô lập agent", d: "Mặc định agent FULL_ACCESS chỉ chạy trong container. Chế độ direct bỏ ranh giới này nên phải bật chủ động ở server (SAFETYNET_ALLOW_DIRECT=1).",
+  { n: "3", t: "Cô lập agent", d: "Mặc định agent FULL_ACCESS chỉ chạy trong container. Chế độ direct bỏ ranh giới này nên phải bật chủ động ở server (SAFETYWEBBING_ALLOW_DIRECT=1).",
     at: "engines/live.py + Dockerfile · config.validate_mode", test: "hình dạng lệnh docker run · test_direct_mode.py (cổng chế độ)", cov: "part", covT: "MỘT PHẦN" },
   { n: "4", t: "LLM không khẳng định vô căn cứ", d: "Evidence đóng khung, system prompt coi là dữ liệu, OWASP tra bảng tĩnh.",
     at: "labeling_llm._SYSTEM · owasp.py", test: "chưa có", cov: "none", covT: "CHƯA TEST" },
@@ -569,7 +569,7 @@ if (LANG === "en") {
   var INV_EN = [
     { t: "Loopback whitelist", d: "Only localhost / 127.0.0.0/8 / ::1. Rejected before anything is spawned.", covT: "TESTED" },
     { t: "Fixed scope", d: "Scan type → goal template in code, no free-form text.", covT: "TESTED" },
-    { t: "Agent isolation", d: "By default the FULL_ACCESS agent only runs inside a container. Direct mode removes this boundary, so it must be enabled deliberately on the server (SAFETYNET_ALLOW_DIRECT=1).",
+    { t: "Agent isolation", d: "By default the FULL_ACCESS agent only runs inside a container. Direct mode removes this boundary, so it must be enabled deliberately on the server (SAFETYWEBBING_ALLOW_DIRECT=1).",
       test: "shape of the docker run command · test_direct_mode.py (mode gate)", covT: "PARTIAL" },
     { t: "The LLM may not assert without grounds", d: "Evidence is framed, the system prompt treats it as data, OWASP comes from a static table.", test: "none yet", covT: "UNTESTED" },
     { t: "Log every scan", d: "scan_requested is written before anything runs; a logging failure must not break the scan.", covT: "TESTED" },

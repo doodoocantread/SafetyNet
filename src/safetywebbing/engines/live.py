@@ -51,7 +51,7 @@ def container_name(run_id: str) -> str:
     `docker kill` on cancel/timeout — the client process can be killed, but
     `docker run` (attached, no `-d`) does not forward SIGKILL to the container,
     so the scan would keep running after the user "cancelled" it."""
-    return f"safetynet-{run_id}"
+    return f"safetywebbing-{run_id}"
 
 
 def target_for_container(url: str) -> str:
@@ -72,7 +72,7 @@ class LiveAgentEngine:
     """Runs one scan per call. Inputs are already validated by config.py."""
 
     name: str = "live"
-    image: str = "safetynet-agent"
+    image: str = "safetywebbing-agent"
     runs_root: Path = Path("runs")
     # Host directory holding Claude Code credentials, mounted read-only.
     claude_creds_dir: Path = Path.home() / ".claude"
@@ -175,7 +175,7 @@ class LiveAgentEngine:
         cred_file = src / ".credentials.json"
         if not cred_file.is_file():
             return None
-        tmp_root = Path(tempfile.mkdtemp(prefix="safetynet-creds-"))
+        tmp_root = Path(tempfile.mkdtemp(prefix="safetywebbing-creds-"))
         claude_dir = tmp_root / ".claude"
         claude_dir.mkdir()
         shutil.copy2(cred_file, claude_dir / ".credentials.json")

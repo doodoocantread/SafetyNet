@@ -15,9 +15,9 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from safetynet.adapter import adapt
-from safetynet.labeling import HeuristicLabeler, _http_status, label_findings
-from safetynet.models import Finding, Severity
+from safetywebbing.adapter import adapt
+from safetywebbing.labeling import HeuristicLabeler, _http_status, label_findings
+from safetywebbing.models import Finding, Severity
 
 SAMPLE = Path(__file__).resolve().parents[1] / "samples" / "runs" / "sqli-claude-03"
 
