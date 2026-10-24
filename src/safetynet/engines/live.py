@@ -20,12 +20,15 @@ Two integration seams handled here (ARCHITECTURE.md §7):
 from __future__ import annotations
 
 import asyncio
+import os
 import shutil
 import tempfile
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit
 
+from ..config import LLM_KEY_ENV
 from .base import RunResult, ScanFailed, load_run_result  # noqa: F401 - ScanFailed re-exported
 
 # Target host as seen from inside the container (Docker Desktop / host-gateway).
@@ -34,6 +37,13 @@ _CONTAINER_HOST = "host.docker.internal"
 # Home of the non-root container user (see agent_image/Dockerfile). Credentials
 # are mounted here, not into /root — Claude Code refuses to run as root.
 _CONTAINER_HOME = "/home/agent"
+
+# Provider API keys an `llm_api_key` agent (e.g. hackingBuddy) may use. Passed
+# THROUGH to the container by name (`docker run -e NAME`, no value on the argv),
+# so the secret never appears in the command line or in `ps`. The value comes from
+# the server's environment, or from a per-scan key the engine injects into the
+# docker client's env under that name (see `llm_api_key` / `llm_env_name`).
+_LLM_KEY_ENV = LLM_KEY_ENV
 
 
 def container_name(run_id: str) -> str:
@@ -70,6 +80,17 @@ class LiveAgentEngine:
     model: str | None = None
     max_decisions: int = 20
     timeout_s: float = 600.0
+    # How the agent in `image` authenticates to an LLM (config.Agent.auth):
+    #   "claude_oauth" — mount an ephemeral copy of the host's Claude Code creds.
+    #   "llm_api_key"  — forward provider API keys from the server's env instead.
+    auth: str = "claude_oauth"
+    llm_key_env: tuple[str, ...] = _LLM_KEY_ENV
+    # Per-scan LLM key entered in the UI (never persisted or audited). When set, it
+    # is injected into the docker client's env under `llm_env_name` and forwarded to
+    # the container by name only; `llm_env_name` alone (no key) restricts forwarding
+    # to that one provider's SERVER env var.
+    llm_api_key: str | None = None
+    llm_env_name: str | None = None
 
     def build_command(
         self,
@@ -79,13 +100,19 @@ class LiveAgentEngine:
         run_id: str,
         creds_dir: Path | None = None,
         claude_json: Path | None = None,
+        env: Mapping[str, str] | None = None,
     ) -> list[str]:
         """The exact `docker run` argv. Pure function — unit-testable without Docker.
 
         `creds_dir` / `claude_json`, when given, are an EPHEMERAL copy of the
         host credentials (see `_prepare_creds`); they are mounted read-write so
         the Claude CLI can refresh its OAuth token inside the container.
+
+        For an `llm_api_key` agent no credentials are mounted; instead any of
+        `llm_key_env` present in `env` (the server's environment) is forwarded to
+        the container by name only, so the secret stays out of the argv.
         """
+        env = os.environ if env is None else env
         runs_abs = str(self.runs_root.resolve())
         cmd = [
             "docker", "run", "--rm",
@@ -97,6 +124,14 @@ class LiveAgentEngine:
             # Persist runs/ back to the host so the backend can read results.
             "-v", f"{runs_abs}:/work/runs",
         ]
+        if self.auth == "llm_api_key":
+            # Forward keys by NAME only, so no value hits the argv. When a provider
+            # was chosen (llm_env_name), forward just that one; otherwise forward
+            # whichever provider keys the server environment has.
+            names = (self.llm_env_name,) if self.llm_env_name else self.llm_key_env
+            for name in names:
+                if name and env.get(name):
+                    cmd += ["-e", name]
         # Writable (NOT :ro) so the CLI can persist a refreshed access token.
         if creds_dir is not None:
             cmd += ["-v", f"{creds_dir.resolve()!s}:{_CONTAINER_HOME}/.claude"]
@@ -115,6 +150,18 @@ class LiveAgentEngine:
         if self.model:
             cmd += ["--model", self.model]
         return cmd
+
+    def container_env(self) -> dict[str, str] | None:
+        """The environment to spawn the `docker` client with. For an llm_api_key
+        agent, a per-scan key is injected under its provider's env name (so the
+        container receives it via `-e NAME` without it ever touching the argv).
+        None means inherit the server env unchanged (the OAuth path)."""
+        if self.auth != "llm_api_key":
+            return None
+        env = dict(os.environ)
+        if self.llm_api_key and self.llm_env_name:
+            env[self.llm_env_name] = self.llm_api_key
+        return env
 
     def _prepare_creds(self) -> Path | None:
         """Copy the host's Claude credential files into a fresh temp dir so the
@@ -155,20 +202,27 @@ class LiveAgentEngine:
             pass  # docker CLI missing/unreachable — nothing more we can do here
 
     async def run(self, *, target: str, goal: str, run_id: str) -> RunResult:
-        creds_root = self._prepare_creds()
+        # Only OAuth agents need the host credential copy; an llm_api_key agent
+        # gets its key forwarded by build_command instead.
+        creds_root = self._prepare_creds() if self.auth == "claude_oauth" else None
         creds_dir = (creds_root / ".claude") if creds_root else None
         claude_json = creds_root / ".claude.json" if creds_root else None
         if claude_json is not None and not claude_json.is_file():
             claude_json = None
+        # For an llm_api_key agent, hand the docker CLIENT the env it forwards (with
+        # a per-scan key injected under its provider's name). None (OAuth) inherits.
+        docker_env = self.container_env()
         try:
             cmd = self.build_command(
                 target=target, goal=goal, run_id=run_id,
                 creds_dir=creds_dir, claude_json=claude_json,
+                env=docker_env if docker_env is not None else os.environ,
             )
             proc = await asyncio.create_subprocess_exec(
                 *cmd,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.STDOUT,
+                env=docker_env,
             )
             try:
                 raw, _ = await asyncio.wait_for(proc.communicate(), timeout=self.timeout_s)

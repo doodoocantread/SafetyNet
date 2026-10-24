@@ -124,25 +124,135 @@ def validate_mode(mode: str) -> str:
     return mode
 
 
+# --- Agent choice ------------------------------------------------------------
+#
+# A scan picks WHICH pentest agent runs, independently of the execution mode
+# (docker/direct). Every agent conforms to the same on-disk contract — it writes
+# runs/<run_id>/summary.json + traces/ (engines/base.py) — so the whole pipeline
+# downstream (adapter, labeler, report) is identical whichever one ran. Agents
+# differ only in two things the engine needs to know:
+#   - `image`: the Docker image that runs the agent in mode "docker".
+#   - `auth`: how the agent reaches an LLM.
+#       "claude_oauth" — uses the host's Claude Code OAuth session; an ephemeral
+#                        copy of the credentials is mounted in (engines/live.py).
+#       "llm_api_key"  — authenticates to an LLM provider with an API key taken
+#                        from the SERVER's environment and passed through to the
+#                        container. No host credentials are mounted.
+# Adding an agent here is the only code change needed to offer it; the request
+# body and the UI just carry its key, exactly like scan_type.
+
+
+@dataclass(frozen=True)
+class Agent:
+    key: str
+    label: str
+    image: str  # Docker image for mode "docker"
+    auth: str  # "claude_oauth" | "llm_api_key"
+    description: str = ""
+    # Execution modes this agent supports. PentestGPT runs both in a container and
+    # as a host process; hackingBuddy is wired for the isolated container path only.
+    modes: tuple[str, ...] = ("docker", "direct")
+
+
+DEFAULT_AGENT = "pentestgpt"
+
+AGENTS: dict[str, Agent] = {
+    "pentestgpt": Agent(
+        key="pentestgpt",
+        label="PentestGPT",
+        image="safetynet-agent",
+        auth="claude_oauth",
+        description="Agent PentestGPT đã vendor; xác thực bằng phiên Claude Code của host.",
+        modes=("docker", "direct"),
+    ),
+    "hackingbuddy": Agent(
+        key="hackingbuddy",
+        label="hackingBuddyGPT (web)",
+        image="safetynet-hackingbuddy",
+        auth="llm_api_key",
+        description="Use-case web của hackingBuddyGPT; cần API key LLM trong môi trường server.",
+        modes=("docker",),
+    ),
+}
+
+
+class AgentNotAllowed(ValueError):
+    """Raised for an unknown agent key, or an agent/mode combination it does not support."""
+
+
+def validate_agent(agent: str) -> str:
+    if agent not in AGENTS:
+        raise AgentNotAllowed(f"unknown agent {agent!r}; valid: {', '.join(sorted(AGENTS))}")
+    return agent
+
+
+def agent_for(agent: str) -> Agent:
+    """The Agent record for a key, after validation."""
+    return AGENTS[validate_agent(agent)]
+
+
 # --- Agent model ---------------------------------------------------------------
 
 # The model name lands in the agent's argv (`--model <name>`), so it must be a plain
 # model id: no leading dash (option injection), no whitespace, no shell/path chars.
+# `allow_slash` additionally permits a litellm provider/model id (e.g.
+# `anthropic/claude-sonnet-5-5`, `gemini/gemini-1.5-pro`) for the hackingBuddy agent;
+# a slash is harmless in a single argv token (the model never becomes a path here).
 _MODEL_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:\[\]-]{0,63}")
+_MODEL_RE_SLASH = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:\[\]/-]{0,79}")
 
 
 class InvalidModel(ValueError):
     """Raised when a requested model name is not a plain model id."""
 
 
-def validate_model(model: str | None) -> str | None:
+def validate_model(model: str | None, *, allow_slash: bool = False) -> str | None:
     """Return a safe model id, or None to use the agent's default."""
     if model is None or not model.strip():
         return None
     model = model.strip()
-    if not _MODEL_RE.fullmatch(model):
+    rx = _MODEL_RE_SLASH if allow_slash else _MODEL_RE
+    if not rx.fullmatch(model):
         raise InvalidModel(f"invalid model {model!r}")
     return model
+
+
+# --- LLM providers (for the `llm_api_key` agents, e.g. hackingBuddy) ----------
+#
+# hackingBuddy reaches an LLM through litellm, which needs a provider API key. The
+# key can come from the SERVER environment (the env var below) or be supplied
+# PER SCAN from the UI — in which case the engine injects it into the container
+# under this env var, off the argv, and it is never persisted or audited.
+
+
+@dataclass(frozen=True)
+class LLMProvider:
+    key: str  # ui/request key, e.g. "gemini"
+    label: str
+    env_name: str  # the environment variable litellm reads
+
+
+LLM_PROVIDERS: dict[str, LLMProvider] = {
+    "anthropic": LLMProvider("anthropic", "Anthropic (Claude)", "ANTHROPIC_API_KEY"),
+    "gemini": LLMProvider("gemini", "Google Gemini", "GEMINI_API_KEY"),
+    "openai": LLMProvider("openai", "OpenAI", "OPENAI_API_KEY"),
+    "openrouter": LLMProvider("openrouter", "OpenRouter", "OPENROUTER_API_KEY"),
+}
+
+# Canonical list of the env vars an llm_api_key agent may use (engine + API share it).
+LLM_KEY_ENV: tuple[str, ...] = tuple(p.env_name for p in LLM_PROVIDERS.values())
+
+
+class InvalidLLMProvider(ValueError):
+    """Raised when a requested LLM provider is not one we support."""
+
+
+def validate_llm_provider(provider: str) -> str:
+    if provider not in LLM_PROVIDERS:
+        raise InvalidLLMProvider(
+            f"unknown llm provider {provider!r}; valid: {', '.join(LLM_PROVIDERS)}"
+        )
+    return provider
 
 
 # --- Agent timeout ---------------------------------------------------------------

@@ -60,6 +60,7 @@ async function api(path, opt) {
 }
 
 const MODE_LABEL = {docker: tr("Docker (cô lập)", "Docker (isolated)"), direct: tr("Trực tiếp trên máy", "Directly on this machine")};
+const AGENT_LABEL = {pentestgpt: "PentestGPT", hackingbuddy: "hackingBuddyGPT (web)"};
 const STATUS = {
   completed:   {label: tr("Hoàn tất", "Completed"),      color: "var(--ok)",   bg: "var(--ok-bg)"},
   queued:      {label: tr("Đang chờ", "Queued"),          color: "var(--low)",  bg: "var(--low-bg)"},
@@ -245,6 +246,7 @@ function ScanMeta({meta, typeLabel}) {
   return <>
     <div className="meta-cell"><b>{tr("Dự án", "Project")}</b><span>{meta.project || "—"}</span></div>
     <div className="meta-cell"><b>{tr("Loại scan", "Scan type")}</b><span>{typeLabel(meta.scan_type)}</span></div>
+    <div className="meta-cell"><b>Agent</b><span>{AGENT_LABEL[meta.agent] || meta.agent || "—"}</span></div>
     <div className="meta-cell"><b>{tr("Chế độ chạy", "Run mode")}</b><span>{MODE_LABEL[meta.mode] || meta.mode || "—"}</span></div>
     <div className="meta-cell"><b>{tr("Model agent", "Agent model")}</b><span>{meta.model || tr("mặc định", "default")}</span></div>
     <div className="meta-cell"><b>Timeout</b><span>{meta.timeout_s ? meta.timeout_s + "s" : "—"}</span></div>

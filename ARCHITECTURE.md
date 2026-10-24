@@ -95,8 +95,14 @@ Frontend poll GET /scan/{job_id} để hiện progress (scan live ~1–2 phút).
 ### Engine (interface pluggable)
 - Hợp đồng chung: `run(target, goal) -> RunResult`. `RunResult` bọc `summary` (dict) + đường dẫn
   `traces/`.
-- `LiveAgentEngine`: spawn Docker container chạy `pentestgpt_agent` (vendored) với `TrialConfig`
-  (target đã whitelist, goal template, `backend="claude"`). Mount thư mục `runs/` ra host.
+- `LiveAgentEngine`: spawn Docker container chạy agent đã chọn (`config.AGENTS`) với target đã
+  whitelist + goal template. Mount thư mục `runs/` ra host. **Chọn agent** là lựa chọn mỗi lần quét,
+  tách khỏi chế độ chạy; engine chỉ đổi `image` + cách xác thực (`auth`):
+  - `pentestgpt` (`safetynet-agent`, mặc định): `backend="claude"`, mount bản sao tạm của credential
+    Claude Code trên host.
+  - `hackingbuddy` (`safetynet-hackingbuddy`): use-case web của hackingBuddyGPT; không mount
+    credential, thay vào đó chuyển tiếp API key LLM từ môi trường server (litellm). Chỉ chế độ docker.
+  Mọi agent ghi **cùng** `summary.json` + `traces/`, nên adapter/labeler/report phía sau không đổi.
 - `ReplayEngine`: đọc một thư mục `runs/<id>/` có sẵn. Dùng cho demo mode và test — **không cần
   auth, không tốn tiền, tất định**.
 - (Tuần sau, nếu kịp) `ZapEngine`: chạy OWASP ZAP baseline → cùng trả `RunResult`.

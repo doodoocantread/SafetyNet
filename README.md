@@ -13,6 +13,8 @@ quét chạy **trong môi trường cô lập**, rồi dùng LLM **tổng hợp 
   - `engines/` — interface engine + `LiveAgentEngine` (chạy agent trong Docker).
 - `agent_image/` — image Docker chứa agent PentestGPT đã **vendor** (10 file) + `unified-agent`.
   Agent FULL_ACCESS chỉ chạy bên trong container này.
+- `agent_image_hackingbuddy/` — image Docker cho agent thứ hai: use-case web của hackingBuddyGPT,
+  bọc bởi một wrapper nói đúng hợp đồng `summary.json` của SafetyNet (xem “Chọn agent” bên dưới).
 - `runs/` — kết quả scan (`summary.json` + `traces/`), bind-mount từ container ra host.
 
 ## Nguồn vendor
@@ -116,6 +118,62 @@ tạo ra báo cáo). Scan ghi trước khi có `timeout_s`/`model` trong audit l
   cảnh báo khi có `ANTHROPIC_API_KEY` mà thiếu package `anthropic`), giới hạn đang áp dụng, phạm vi
   quét cố định và nhật ký `audit.log`. Chỉ báo có/không của secret, không bao giờ hiện giá trị.
   `GET /api/system`, `GET /api/audit`.
+
+## Chọn agent: PentestGPT · hackingBuddyGPT
+
+Mỗi lần quét chọn **agent nào** sẽ chạy, độc lập với **chế độ chạy** (docker/direct). Mọi agent đều
+ghi **cùng một hợp đồng trên đĩa** — `runs/<run_id>/summary.json` + `traces/` — nên toàn bộ pipeline
+phía sau (adapter → labeler → báo cáo) giống hệt nhau bất kể agent nào đã chạy. Chúng chỉ khác ở
+image Docker và cách xác thực LLM. Khai báo trong `config.py` (`AGENTS`); UI lấy qua `GET /api/agents`.
+
+| Agent | Image | Xác thực LLM | Chế độ | Ghi chú |
+|---|---|---|---|---|
+| `pentestgpt` (mặc định) | `safetynet-agent` | Phiên Claude Code OAuth của host (mount bản sao tạm) | `docker`, `direct` | Agent PentestGPT đã vendor; hành vi như trước. |
+| `hackingbuddy` | `safetynet-hackingbuddy` | API key LLM qua litellm (nhập trên UI mỗi lần quét, hoặc env server) | chỉ `docker` | Use-case **web** của [hackingBuddyGPT](https://github.com/ipa-lab/hackingBuddyGPT) (`WebTestingWithExplanation`). |
+
+Chỉ dùng use-case **web** của hackingBuddy (nhận một URL `--host`), khớp với mô hình an toàn của
+SafetyNet (whitelist loopback + cô lập container). Các use-case privesc (SSH/local-shell chạy lệnh
+thật trên máy) **không** được đưa vào. hackingBuddy chỉ chạy ở chế độ `docker` (có ranh giới cô lập);
+nó không có đường `direct`.
+
+### Build image hackingBuddy
+
+```bash
+docker build -t safetynet-hackingbuddy ./agent_image_hackingbuddy
+```
+
+Wrapper (`agent_image_hackingbuddy/safetynet_hb_agent/`) nhận **đúng** bộ tham số CLI như agent
+PentestGPT (`--goal --target --run-id --runs-root …`), chạy `wintermute WebTestingWithExplanation
+--host <target> --hints <goal> …`, rồi dịch log JSONL của hackingBuddy sang `summary.json` + `traces/`
+(`translate.py`, đã có unit test).
+
+### Xác thực & model cho hackingBuddy
+
+hackingBuddy dùng **litellm**, không dùng Claude Code CLI như PentestGPT. Nghĩa là nó gọi API của nhà
+cung cấp (vd **Anthropic** `api.anthropic.com`, **Google Gemini**, OpenAI, OpenRouter) qua một API key,
+chứ **không** dùng được phiên Claude Code OAuth mà PentestGPT dùng.
+
+**Nhập key ở đâu** — hai cách, không loại trừ nhau:
+
+1. **Trên UI (mỗi lần quét).** Khi chọn agent `hackingBuddyGPT`, trang **Quét mới** hiện ô **Nhà cung
+   cấp LLM** (Anthropic / Gemini / OpenAI / OpenRouter) + ô **API key**. Key chỉ dùng cho lần quét đó,
+   **không** ghi ra đĩa, **không** vào `audit.log`; nó được nhớ trong `localStorage` của trình duyệt bạn
+   (theo từng provider) cho tiện, và gửi kèm request. `GET /api/llm-providers` liệt kê các provider.
+2. **Môi trường server.** Đặt `ANTHROPIC_API_KEY` / `GEMINI_API_KEY` / `OPENAI_API_KEY` /
+   `OPENROUTER_API_KEY`. Nếu có sẵn, UI báo “đã có key ở server” và bạn để trống ô API key cũng chạy được.
+
+Engine chuyển key vào container **theo tên** (`docker run -e NAME`) — giá trị không bao giờ lên argv:
+key từ UI được tiêm vào môi trường của tiến trình `docker` dưới tên env của provider rồi forward đúng
+một tên đó vào container.
+
+**Model** là chuỗi **định dạng litellm** (`anthropic/claude-sonnet-5-5`, `gemini/gemini-1.5-pro`,
+`gpt-4o`, `openrouter/…`) — khác model id của Claude Code. Thứ tự: `SAFETYNET_HB_LLM_MODEL` (ưu tiên) →
+ô **Model** trên UI/`--model`: id trần `claude-…`/`gemini-…` tự map thành `anthropic/…`/`gemini/…` theo
+provider, hoặc để nguyên nếu đã có `/` → mặc định theo provider. Tinh chỉnh thêm:
+`SAFETYNET_HB_LLM_API_BASE`, `SAFETYNET_HB_LLM_CONTEXT_SIZE`.
+
+> Lưu ý an toàn: key này được đưa vào container agent FULL_ACCESS (đọc nội dung web không tin cậy).
+> Container là ranh giới cô lập; đây là đánh đổi cần thiết vì hackingBuddy bắt buộc phải có key LLM.
 
 ## Kết quả thử nghiệm model (chế độ `direct`, 2026-10-15)
 

@@ -29,6 +29,11 @@ function App() {
   const [scanType, setScanType] = useState(qs.get("type") || "general");
   const [project, setProject] = useState(qs.get("project") || "");
   const [pastScans, setPastScans] = useState([]);  // for project suggestions
+  const [agents, setAgents] = useState([]);
+  const [agent, setAgent] = useState("pentestgpt");
+  const [providers, setProviders] = useState([]);   // LLM providers for a UI-entered key
+  const [llmProvider, setLlmProvider] = useState("anthropic");
+  const [llmApiKey, setLlmApiKey] = useState("");
   const [modes, setModes] = useState([]);
   const [mode, setMode] = useState("docker");
   const [model, setModel] = useState("");
@@ -42,10 +47,40 @@ function App() {
 
   useEffect(() => {
     api("/api/scan-types").then(setTypes).catch(() => {});
+    api("/api/agents").then(setAgents).catch(() => {});
+    api("/api/llm-providers").then(setProviders).catch(() => {});
     api("/api/modes").then(setModes).catch(() => {});
     api("/api/runs").then(setRuns).catch(() => {});
     api("/api/history").then(setPastScans).catch(() => {});
   }, []);
+
+  // Modes the selected agent supports (hackingBuddy is docker-only). Keep the
+  // chosen mode valid when the agent changes so the request can never be a
+  // combination the server would reject.
+  const agentInfo = agents.find(a => a.key === agent);
+  const agentModes = (agentInfo && agentInfo.modes) || ["docker", "direct"];
+  useEffect(() => {
+    if (agents.length && !agentModes.includes(mode)) setMode(agentModes[0]);
+  }, [agent, agents]);
+
+  // LLM key handling for agents that need one (hackingBuddy). The key is kept only
+  // in THIS browser (localStorage, per provider) for convenience and sent per-scan;
+  // the server never stores it. Reload the remembered key when the provider changes.
+  const needsKey = !!(agentInfo && agentInfo.needs_key);
+  const providerInfo = providers.find(p => p.key === llmProvider);
+  const keyName = "safetynet_llm_key_" + llmProvider;
+  useEffect(() => {
+    try { setLlmApiKey(localStorage.getItem(keyName) || ""); } catch { setLlmApiKey(""); }
+  }, [llmProvider]);
+  function updateLlmKey(v) {
+    setLlmApiKey(v);
+    try {
+      if (v) localStorage.setItem(keyName, v); else localStorage.removeItem(keyName);
+    } catch { /* private mode / blocked storage — key still works for this scan */ }
+  }
+  // A scan can run if the agent needs no key, or we have one (typed now, or already
+  // in the server env for the chosen provider).
+  const keyReady = !needsKey || !!llmApiKey.trim() || !!(providerInfo && providerInfo.has_server_key);
 
   const projects = [...new Set(pastScans.map(h => h.project).filter(Boolean))];
   // Leaving the target field with no project typed: reuse the project last scanned on that URL.
@@ -77,8 +112,11 @@ function App() {
       const {job_id, run_id} = await api("/api/scan", {
         method: "POST", headers: {"Content-Type": "application/json"},
         body: JSON.stringify({
-          target, scan_type: scanType, mode, model: model.trim() || null, project: project.trim() || null,
+          target, scan_type: scanType, agent, mode, model: model.trim() || null,
+          project: project.trim() || null,
           timeout_s: timeoutS.trim() ? Number(timeoutS) : null,
+          llm_provider: needsKey ? llmProvider : null,
+          llm_api_key: needsKey && llmApiKey.trim() ? llmApiKey.trim() : null,
         }),
       });
       setJobId(job_id);
@@ -142,11 +180,47 @@ function App() {
                   {types.map(t => <option key={t.key} value={t.key}>{t.label}</option>)}
                 </select>
               </div>
+              {agents.length > 0 && <div className="field">
+                <label className="label">Agent</label>
+                <select value={agent} onChange={e => setAgent(e.target.value)}>
+                  {agents.map(a => <option key={a.key} value={a.key} disabled={!a.available}>
+                    {a.label}{a.available ? "" : tr(" — không khả dụng", " — unavailable")}</option>)}
+                </select>
+                {agentInfo && agentInfo.description &&
+                  <div className="hint">{be(agentInfo.description)}</div>}
+                {agents.filter(a => !a.available).map(a =>
+                  <div key={a.key} className="hint">{a.label}: {be(a.reason)}</div>)}
+              </div>}
+              {needsKey && <div className="field">
+                <label className="label">{tr("Nhà cung cấp LLM", "LLM provider")}</label>
+                <select value={llmProvider} onChange={e => setLlmProvider(e.target.value)}>
+                  {providers.map(p => <option key={p.key} value={p.key}>
+                    {p.label}{p.has_server_key ? tr(" — đã có key ở server", " — key set on server") : ""}</option>)}
+                </select>
+              </div>}
+              {needsKey && <div className="field">
+                <label className="label">{tr("API key", "API key")}</label>
+                <input type="password" value={llmApiKey} autoComplete="off" spellcheck="false"
+                  onChange={e => updateLlmKey(e.target.value)}
+                  placeholder={providerInfo && providerInfo.has_server_key
+                    ? tr("để trống = dùng key của server", "leave blank = use the server's key")
+                    : tr("dán API key vào đây", "paste your API key here")} />
+                <div className="hint">{tr(
+                  "Key chỉ dùng cho lần quét này và được lưu trong trình duyệt của bạn (localStorage) — server không lưu, không ghi log.",
+                  "Used for this scan only and remembered in your browser (localStorage) — the server never stores or logs it.")}</div>
+                {!keyReady && <div className="hint err">{tr(
+                  "Cần API key để chạy hackingBuddyGPT.", "An API key is required to run hackingBuddyGPT.")}</div>}
+              </div>}
               {modes.length > 0 && <div className="field">
                 <label className="label">{tr("Chế độ chạy", "Run mode")}</label>
                 <select value={mode} onChange={e => setMode(e.target.value)}>
-                  {modes.map(m => <option key={m.key} value={m.key} disabled={!m.available}>
-                    {be(m.label)}{m.available ? "" : tr(" — không khả dụng", " — unavailable")}</option>)}
+                  {modes.map(m => {
+                    const ok = m.available && agentModes.includes(m.key);
+                    const why = !agentModes.includes(m.key)
+                      ? tr(" — agent không hỗ trợ", " — unsupported by agent")
+                      : (m.available ? "" : tr(" — không khả dụng", " — unavailable"));
+                    return <option key={m.key} value={m.key} disabled={!ok}>{be(m.label)}{why}</option>;
+                  })}
                 </select>
                 {(modes.find(m => m.key === mode) || {}).key === "direct" &&
                   <div className="warnbox" style={{marginTop: 8, marginBottom: 0}}>
@@ -173,7 +247,7 @@ function App() {
                 <input type="number" min="30" max="3600" step="30" value={timeoutS}
                   onChange={e => setTimeoutS(e.target.value)} />
               </div>
-              <button className="btn" onClick={startScan} disabled={busy}>
+              <button className="btn" onClick={startScan} disabled={busy || !keyReady}>
                 {busy ? <><span className="spin" /> {tr("Đang quét…", "Scanning…")}</> : tr("⚡ Bắt đầu quét", "⚡ Start scan")}</button>
               {busy && <button className="btn ghost danger" style={{width: "100%", marginTop: 8}}
                   onClick={cancelScan} disabled={cancelling}>

@@ -42,7 +42,8 @@ SafetyNet/
 │   ├── report.py          (84)      # Report → Markdown
 │   └── engines/
 │       ├── base.py        (40)      # RunResult + Engine Protocol  ← hợp đồng chung
-│       ├── live.py       (178)      # LiveAgentEngine: build `docker run`, copy creds tạm, chạy, đọc summary
+│       ├── live.py       (178)      # LiveAgentEngine: build `docker run` (image+auth theo agent), creds/-e key, đọc summary
+│       ├── local.py      (169)      # LocalAgentEngine: PentestGPT CLI ngay trên host (chế độ direct)
 │       └── replay.py      (46)      # ReplayEngine: đọc run đã lưu (demo/test)
 │
 ├── agent_image/                     # ── IMAGE DOCKER ─────────────────────────────────
@@ -59,6 +60,13 @@ SafetyNet/
 │       ├── audit.py     (447)       # audit_run() cho benchmark CTF (SafetyNet không dùng)
 │       ├── identifiers.py (18)      # validate_opaque_id (chống path traversal)
 │       └── __init__.py    (3)
+│
+├── agent_image_hackingbuddy/        # ── IMAGE DOCKER (agent #2) ──────────────────────
+│   ├── Dockerfile                   # python:3.13-slim + hackingBuddyGPT; user `agent`; không mount creds
+│   ├── pyproject.toml               # hackingBuddyGPT==0.5.0; script safetynet-hackingbuddy-agent
+│   └── safetynet_hb_agent/          # wrapper nói hợp đồng CLI của SafetyNet
+│       ├── cli.py                   # map args → wintermute WebTestingWithExplanation → viết summary.json
+│       └── translate.py             # ★ JSONL span của hackingBuddy → summary.json + traces/ (thuần, có test)
 │
 ├── web/  overview · scan · history · vulns · system (.html) + about.html (tĩnh)   # React 18 + Babel qua CDN, không build
 │        shared.jsx (AppBar/menu, Report, helper) · styles.css · about.css · codefall.js
@@ -371,6 +379,7 @@ Host chỉ dùng: `goal, targets, status, error, cost_usd, wall_duration_s, task
 | Thêm loại scan / đổi goal | `config.py` → `SCAN_TYPES` |
 | Đổi luật whitelist | `config.py` → `validate_target` (và sửa `test_safety.py`) |
 | Thêm engine (vd ZAP) | tạo `engines/zap.py` theo `Engine` Protocol (`engines/base.py`), đăng ký trong `api.py` |
+| Thêm agent (vd hackingBuddy) | thêm mục vào `config.AGENTS` (image + auth + modes); nếu agent ngoài → tạo image mới có wrapper ghi `summary.json` + `traces/` như `agent_image_hackingbuddy/` |
 | Đổi cách ghép request/response | `adapter.py` → `_recover_request` |
 | Đổi luật nhãn offline | `labeling.py` → `HeuristicLabeler` |
 | Đổi prompt/model của LLM labeler | `labeling_llm.py` (`_SYSTEM`) · biến môi trường `SAFETYNET_LLM_MODEL` |

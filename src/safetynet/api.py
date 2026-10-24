@@ -8,6 +8,7 @@ never supplies free-text scope, and the agent never chooses a target.
 from __future__ import annotations
 
 import asyncio
+import os
 import time
 import uuid
 from dataclasses import replace
@@ -21,16 +22,23 @@ from pydantic import BaseModel
 
 from .audit import record_scan
 from .config import (
+    AGENTS,
+    DEFAULT_AGENT,
     DIRECT_MODE_ENV,
+    LLM_PROVIDERS,
     SCAN_TYPES,
+    AgentNotAllowed,
+    InvalidLLMProvider,
     InvalidModel,
     InvalidProject,
     InvalidRunId,
     InvalidTimeout,
     ModeNotAllowed,
     TargetNotAllowed,
+    agent_for,
     direct_mode_enabled,
     goal_for,
+    validate_llm_provider,
     validate_mode,
     validate_model,
     validate_project,
@@ -100,15 +108,49 @@ class TriageRequest(BaseModel):
 class ScanRequest(BaseModel):
     target: str
     scan_type: str = "general"
+    agent: str = DEFAULT_AGENT  # which pentest agent runs (config.AGENTS)
     mode: str = "docker"  # "docker" (isolated, default) | "direct" (host process, opt-in)
     model: str | None = None  # agent model id; None = the agent CLI's default
     timeout_s: float | None = None  # wall-clock budget; None = config.py default
     project: str | None = None  # free-text label to group scans by app; display only
+    # For llm_api_key agents (hackingBuddy): the LLM provider + a key entered in the
+    # UI. The key is used for this scan only — injected into the container, NEVER
+    # written to disk or the audit log. Omit the key to use the server's env key.
+    llm_provider: str | None = None
+    llm_api_key: str | None = None
 
 
 @app.get("/api/scan-types")
 def scan_types() -> list[dict[str, str]]:
     return [{"key": s.key, "label": s.label} for s in SCAN_TYPES.values()]
+
+
+@app.get("/api/agents")
+def agents() -> list[dict[str, Any]]:
+    """Pentest agents the UI may offer. An `llm_api_key` agent needs a provider key;
+    it can come from the server env OR be entered per-scan in the UI, so the agent is
+    selectable either way — `needs_key` / `has_server_key` tell the UI what to prompt."""
+    have_server_key = any(os.environ.get(k) for k in live_engine.llm_key_env)
+    out = []
+    for a in AGENTS.values():
+        needs_key = a.auth == "llm_api_key"
+        out.append({
+            "key": a.key, "label": a.label, "description": a.description,
+            "modes": list(a.modes), "available": True, "reason": None,
+            "needs_key": needs_key,
+            "has_server_key": needs_key and have_server_key,
+        })
+    return out
+
+
+@app.get("/api/llm-providers")
+def llm_providers() -> list[dict[str, Any]]:
+    """LLM providers a UI-entered key may target (for the hackingBuddy agent).
+    `has_server_key` says the server env already holds one, so a key is optional."""
+    return [
+        {"key": p.key, "label": p.label, "has_server_key": bool(os.environ.get(p.env_name))}
+        for p in LLM_PROVIDERS.values()
+    ]
 
 
 @app.get("/api/modes")
@@ -245,7 +287,7 @@ def audit_log(limit: int = 100) -> list[dict[str, Any]]:
 
 
 async def _run_live_job(
-    job_id: str, engine: Engine, mode: str, model: str | None,
+    job_id: str, engine: Engine, agent: str, mode: str, model: str | None,
     target: str, goal: str, scan_type: str, run_id: str,
 ) -> None:
     log: JobLog = _jobs[job_id]["log"]
@@ -256,7 +298,10 @@ async def _run_live_job(
         # queued (never acquired the semaphore) is caught too.
         async with _scan_sema:
             _jobs[job_id].update(status="running")
-            log.append(f"Bắt đầu quét · mode={mode} · model={model or 'mặc định'} · target={target}")
+            log.append(
+                f"Bắt đầu quét · agent={agent} · mode={mode} · "
+                f"model={model or 'mặc định'} · target={target}"
+            )
             # Tail the agent's trace files live so the UI shows real progress, not
             # a spinner — independent of which engine is running (CODEMAP.md §6.4).
             stop_tailing = asyncio.Event()
@@ -274,7 +319,7 @@ async def _run_live_job(
                 )
                 _jobs[job_id].update(status="done", run_id=run_id, report=report)
                 record_scan(_LIVE_RUNS, event="scan_done", run_id=run_id, target=target,
-                            goal=goal, scan_type=scan_type, mode=mode, model=model,
+                            goal=goal, scan_type=scan_type, agent=agent, mode=mode, model=model,
                             status=rr.status)
             except Exception as exc:  # noqa: BLE001 - surface any failure to the UI
                 # asyncio.CancelledError is a BaseException, not caught here — it
@@ -282,7 +327,7 @@ async def _run_live_job(
                 log.append(f"LỖI: {type(exc).__name__}: {exc}", level="error")
                 _jobs[job_id].update(status="error", error=f"{type(exc).__name__}: {exc}")
                 record_scan(_LIVE_RUNS, event="scan_error", run_id=run_id, target=target,
-                            goal=goal, scan_type=scan_type, mode=mode, model=model,
+                            goal=goal, scan_type=scan_type, agent=agent, mode=mode, model=model,
                             error=str(exc))
             finally:
                 stop_tailing.set()
@@ -294,7 +339,7 @@ async def _run_live_job(
         log.append("Người dùng đã hủy quét", level="warn")
         _jobs[job_id].update(status="cancelled", error="Đã hủy theo yêu cầu người dùng")
         record_scan(_LIVE_RUNS, event="scan_cancelled", run_id=run_id, target=target,
-                    goal=goal, scan_type=scan_type, mode=mode, model=model)
+                    goal=goal, scan_type=scan_type, agent=agent, mode=mode, model=model)
     finally:
         _jobs[job_id]["finished_at"] = time.time()
 
@@ -315,7 +360,12 @@ async def start_scan(req: ScanRequest) -> dict[str, str]:
     except ModeNotAllowed as exc:
         raise HTTPException(400, str(exc)) from None
     try:
-        model = validate_model(req.model)
+        agent = agent_for(req.agent)  # which pentest agent runs (before model: see below)
+    except AgentNotAllowed as exc:
+        raise HTTPException(400, str(exc)) from None
+    try:
+        # hackingBuddy models are litellm ids (provider/model), so allow a slash there.
+        model = validate_model(req.model, allow_slash=(agent.auth == "llm_api_key"))
     except InvalidModel as exc:
         raise HTTPException(400, str(exc)) from None
     try:
@@ -326,26 +376,74 @@ async def start_scan(req: ScanRequest) -> dict[str, str]:
         project = validate_project(req.project)
     except InvalidProject as exc:
         raise HTTPException(400, str(exc)) from None
-    base_engine = local_engine if mode == "direct" else live_engine
-    if mode == "direct" and local_engine.command() is None:
-        raise HTTPException(400, "direct mode: pentestgpt-agent CLI not found (see README)")
-    # Per-scan copy so a requested model/timeout never leaks into the next scan.
-    engine: Engine = replace(base_engine, model=model, timeout_s=timeout_s)
+    if mode not in agent.modes:
+        raise HTTPException(
+            400,
+            f"agent {agent.key!r} does not support mode {mode!r} "
+            f"(supported: {', '.join(agent.modes)})",
+        )
+
+    # LLM key for an llm_api_key agent (hackingBuddy): a per-scan key entered in the
+    # UI — used for this scan only, never written to disk or the audit log — or the
+    # server's env key. Decide the source + provider here; the engine injects it.
+    llm_api_key: str | None = None
+    llm_env_name: str | None = None
+    if agent.auth == "llm_api_key":
+        user_key = (req.llm_api_key or "").strip() or None
+        provider = None
+        if req.llm_provider:
+            try:
+                provider = validate_llm_provider(req.llm_provider)
+            except InvalidLLMProvider as exc:
+                raise HTTPException(400, str(exc)) from None
+        if user_key and provider is None:
+            raise HTTPException(400, "llm_provider is required when an API key is supplied")
+        if provider is not None:
+            # A provider was chosen: that provider's key must be present — from the
+            # UI (used for this scan only) or already in the server environment.
+            env_name = LLM_PROVIDERS[provider].env_name
+            if user_key is None and not os.environ.get(env_name):
+                raise HTTPException(
+                    400,
+                    f"no API key for provider {provider!r} — enter one in the UI, or set "
+                    f"{env_name} in the server environment",
+                )
+            llm_env_name = env_name
+            llm_api_key = user_key
+        elif not any(os.environ.get(k) for k in live_engine.llm_key_env):
+            raise HTTPException(
+                400,
+                f"agent {agent.key!r} needs an LLM API key — enter one in the UI, or set "
+                f"one of {', '.join(live_engine.llm_key_env)} in the server environment",
+            )
+
+    # Per-scan copy so a requested model/timeout — or the chosen agent's image /
+    # auth / key — never leaks into the shared engine used by the next scan.
+    if mode == "direct":
+        if local_engine.command() is None:
+            raise HTTPException(400, "direct mode: pentestgpt-agent CLI not found (see README)")
+        engine: Engine = replace(local_engine, model=model, timeout_s=timeout_s)
+    else:
+        engine = replace(
+            live_engine, image=agent.image, auth=agent.auth, model=model, timeout_s=timeout_s,
+            llm_api_key=llm_api_key, llm_env_name=llm_env_name,
+        )
 
     _prune_jobs()
     job_id = uuid.uuid4().hex[:12]
     run_id = f"live-{job_id}"
-    _jobs[job_id] = {"status": "queued", "run_id": run_id, "mode": mode, "model": model,
-                     "timeout_s": timeout_s, "project": project, "report": None, "error": None, "log": JobLog()}
+    _jobs[job_id] = {"status": "queued", "run_id": run_id, "agent": agent.key, "mode": mode,
+                     "model": model, "timeout_s": timeout_s, "project": project,
+                     "report": None, "error": None, "log": JobLog()}
     # Audit the authorized scope BEFORE anything is spawned (ARCHITECTURE.md §2.5).
     record_scan(_LIVE_RUNS, event="scan_requested", run_id=run_id, target=target,
-                goal=goal, scan_type=req.scan_type, mode=mode, model=model,
+                goal=goal, scan_type=req.scan_type, agent=agent.key, mode=mode, model=model,
                 timeout_s=timeout_s, project=project)
     task = asyncio.create_task(
-        _run_live_job(job_id, engine, mode, model, target, goal, req.scan_type, run_id)
+        _run_live_job(job_id, engine, agent.key, mode, model, target, goal, req.scan_type, run_id)
     )
     _jobs[job_id]["task"] = task
-    return {"job_id": job_id, "run_id": run_id, "mode": mode}
+    return {"job_id": job_id, "run_id": run_id, "agent": agent.key, "mode": mode}
 
 
 @app.get("/api/scan/{job_id}")

@@ -54,8 +54,8 @@ def _fold_audit(entries: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
         if event == "scan_requested":
             rec.update(
                 created_at=e.get("ts"), target=e.get("target"), goal=e.get("goal"),
-                scan_type=e.get("scan_type"), mode=e.get("mode"), model=e.get("model"),
-                timeout_s=e.get("timeout_s"), project=e.get("project"),
+                scan_type=e.get("scan_type"), agent=e.get("agent"), mode=e.get("mode"),
+                model=e.get("model"), timeout_s=e.get("timeout_s"), project=e.get("project"),
             )
         elif event in ("scan_done", "scan_error", "scan_cancelled"):
             rec["finished_at"] = e.get("ts")
@@ -67,7 +67,7 @@ def _fold_audit(entries: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
             if e.get("error"):
                 rec["error"] = e["error"]
             # Fall back to the terminal event if the request line was lost.
-            for key in ("target", "goal", "scan_type", "mode", "model"):
+            for key in ("target", "goal", "scan_type", "agent", "mode", "model"):
                 rec.setdefault(key, e.get(key))
     return runs
 
